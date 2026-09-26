@@ -1,204 +1,361 @@
 "use client";
 
-import { motion } from "motion/react";
+import Link from "next/link";
+import Image from "next/image";
+import { useEffect, useRef, useState } from "react";
+import { motion, useReducedMotion } from "motion/react";
 import {
-  ArrowRight,
-  Building2,
-  CalendarCheck,
-  CheckCircle2,
-  CircleDollarSign,
-  MapPinned,
-  Menu,
-  Plane
+  Bell,
+  Bot,
+  ChevronsUpDown,
+  Home,
+  LayoutDashboard,
+  Luggage,
+  Search,
+  Settings,
+  ShieldCheck,
+  TriangleAlert,
+  UserRound,
+  Users,
 } from "lucide-react";
-import { formatTravelerSummary, PRODUCT_NAME } from "@repo/core";
+import { PRODUCT_NAME } from "@repo/core";
+import { Avatar } from "@repo/ui";
 import { Button } from "@repo/ui/button";
-import { TravelerSchema, type Traveler } from "@repo/types";
+import { cn } from "@repo/ui/utils";
+import { type Screen } from "@/lib/travel-data";
+import { Dashboard } from "./dashboard";
+import {
+  CreateTrip,
+  Planning,
+  TripPlan,
+  TravelersPage,
+  PoliciesPage,
+} from "./trip-workspace";
+import {
+  Disruptions,
+  Itinerary,
+  TravelerHome,
+  Assistant,
+  Profile,
+} from "./traveler-views";
+import { DesignSystem } from "./design-system";
 
-const travelers: Traveler[] = TravelerSchema.array().parse([
+const navigation = [
   {
-    id: "trv_001",
-    name: "Maya Chen",
-    homeCity: "Paris",
-    status: "ready"
+    label: "Overview",
+    href: "/",
+    icon: LayoutDashboard,
+    screens: ["overview"],
   },
   {
-    id: "trv_002",
-    name: "Jon Bell",
-    homeCity: "Berlin",
-    status: "review"
+    label: "Trips",
+    href: "/trips",
+    icon: Luggage,
+    screens: ["trips", "create", "planning", "trip", "home", "itinerary"],
   },
   {
-    id: "trv_003",
-    name: "Amara Singh",
-    homeCity: "Madrid",
-    status: "ready"
-  }
-]);
+    label: "Travelers",
+    href: "/travelers",
+    icon: Users,
+    screens: ["travelers"],
+  },
+  {
+    label: "Policies",
+    href: "/policies",
+    icon: ShieldCheck,
+    screens: ["policies"],
+  },
+  {
+    label: "Disruptions",
+    href: "/disruptions",
+    icon: TriangleAlert,
+    screens: ["disruptions"],
+  },
+  {
+    label: "Settings",
+    href: "/profile",
+    icon: Settings,
+    screens: ["profile", "design-system"],
+  },
+];
+const breadcrumbs: Record<Screen, string> = {
+  overview: "Overview",
+  trips: "Trips",
+  create: "Trips / Create trip",
+  planning: "Trips / Berlin Offsite / Planning",
+  trip: "Trips / Berlin Team Offsite",
+  disruptions: "Disruptions / Berlin Offsite / Alice",
+  home: "My trip / Berlin Offsite",
+  assistant: "Assistant",
+  itinerary: "Trips / Berlin Offsite / Itinerary",
+  travelers: "Travelers",
+  policies: "Policies",
+  profile: "Settings",
+  "design-system": "Shared UI",
+};
+const mobileTitles: Record<Screen, [string, string]> = {
+  overview: ["Berlin Offsite", "Tuesday, October 13"],
+  home: ["Berlin Offsite", "Tuesday, October 13"],
+  assistant: ["Assistant", "Ready when you are"],
+  disruptions: ["Trip update", "Berlin Offsite"],
+  itinerary: ["Updated itinerary", "Berlin Offsite · Oct 13–15"],
+  trips: ["Trips", "Your team travel"],
+  create: ["Create trip", "Acme Europe"],
+  planning: ["Planning", "Berlin Offsite"],
+  trip: ["Berlin Team Offsite", "October 13–15"],
+  travelers: ["Travelers", "Acme Europe"],
+  policies: ["Travel policy", "Acme Europe"],
+  profile: ["Profile", "Your travel preferences"],
+  "design-system": ["Shared UI", "Travel Manager"],
+};
 
-const navItems = ["Overview", "Travelers", "Constraints"];
-
-export function AppShell() {
-  return (
-    <div className="min-h-screen bg-background text-foreground">
-      <div className="flex min-h-screen">
-        <aside className="hidden w-64 border-r bg-white px-5 py-6 md:block">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary text-primary-foreground">
-              <Plane className="h-4 w-4" aria-hidden="true" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold">{PRODUCT_NAME}</p>
-              <p className="text-xs text-muted-foreground">Coordination desk</p>
-            </div>
-          </div>
-          <nav className="mt-10 space-y-1">
-            {navItems.map((item) => (
-              <a
-                key={item}
-                className="block rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-                href="#"
-              >
-                {item}
-              </a>
-            ))}
-          </nav>
-        </aside>
-
-        <div className="flex min-w-0 flex-1 flex-col">
-          <header className="flex h-16 items-center justify-between border-b bg-white px-4 md:px-8">
-            <div className="flex items-center gap-3 md:hidden">
-              <Button size="icon" variant="ghost" aria-label="Open navigation">
-                <Menu className="h-4 w-4" aria-hidden="true" />
-              </Button>
-              <span className="text-sm font-semibold">{PRODUCT_NAME}</span>
-            </div>
-            <div className="hidden md:block">
-              <p className="text-sm font-medium">Executive offsite</p>
-              <p className="text-xs text-muted-foreground">
-                San Francisco arrival before 09:30
-              </p>
-            </div>
-            <Button size="sm">
-              <CalendarCheck className="h-4 w-4" aria-hidden="true" />
-              Review plan
-            </Button>
-          </header>
-
-          <motion.main
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.24, ease: "easeOut" }}
-            className="flex-1 px-4 py-6 md:px-8 md:py-8"
-          >
-            <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[1fr_320px]">
-              <section className="min-w-0">
-                <div className="mb-6">
-                  <p className="text-sm font-medium text-primary">
-                    {formatTravelerSummary(travelers.length, "San Francisco")}
-                  </p>
-                  <h1 className="mt-2 max-w-2xl text-3xl font-semibold tracking-normal md:text-4xl">
-                    Everyone arrives together, within policy.
-                  </h1>
-                  <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground md:text-base">
-                    A clean workspace for coordinating people, constraints,
-                    deadlines, and travel decisions.
-                  </p>
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <StatusMetric
-                    icon={<CheckCircle2 className="h-4 w-4" aria-hidden="true" />}
-                    label="Ready"
-                    value="2 travelers"
-                  />
-                  <StatusMetric
-                    icon={<CircleDollarSign className="h-4 w-4" aria-hidden="true" />}
-                    label="Policy"
-                    value="Within limit"
-                  />
-                  <StatusMetric
-                    icon={<MapPinned className="h-4 w-4" aria-hidden="true" />}
-                    label="Arrival"
-                    value="09:10 target"
-                  />
-                </div>
-
-                <div className="mt-6 overflow-hidden rounded-lg border bg-white shadow-sm">
-                  <div className="border-b px-5 py-4">
-                    <h2 className="text-base font-semibold">Travelers</h2>
-                  </div>
-                  <div className="divide-y">
-                    {travelers.map((traveler) => (
-                      <div
-                        key={traveler.id}
-                        className="flex items-center justify-between gap-4 px-5 py-4"
-                      >
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-medium">
-                            {traveler.name}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            Departing from {traveler.homeCity}
-                          </p>
-                        </div>
-                        <span className="rounded-md border px-2.5 py-1 text-xs font-medium capitalize text-muted-foreground">
-                          {traveler.status}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </section>
-
-              <aside className="rounded-lg border bg-white p-5 shadow-sm">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-md bg-secondary text-secondary-foreground">
-                    <Building2 className="h-4 w-4" aria-hidden="true" />
-                  </div>
-                  <div>
-                    <h2 className="text-sm font-semibold">Workspace status</h2>
-                    <p className="text-xs text-muted-foreground">
-                      Plan health is steady
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-5 space-y-3 text-sm text-muted-foreground">
-                  <p>Company policy is attached.</p>
-                  <p>Traveler constraints are ready.</p>
-                  <p>Arrival window is locked.</p>
-                </div>
-                <Button className="mt-6 w-full" variant="secondary">
-                  Open coordination
-                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                </Button>
-              </aside>
-            </div>
-          </motion.main>
-        </div>
-      </div>
-    </div>
+export function AppShell({ screen = "overview" }: { screen?: Screen }) {
+  const reducedMotion = useReducedMotion();
+  const [query, setQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const listener = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === "k") {
+        event.preventDefault();
+        searchRef.current?.focus();
+        setSearchOpen(true);
+      }
+      if (event.key === "Escape") setSearchOpen(false);
+    };
+    window.addEventListener("keydown", listener);
+    return () => window.removeEventListener("keydown", listener);
+  }, []);
+  const results = [
+    {
+      title: "Berlin Team Offsite",
+      detail: "October 13–15 · 12 travelers",
+      href: "/trips/berlin",
+    },
+    {
+      title: "Alice Martin",
+      detail: "Paris · Product Lead",
+      href: "/travelers",
+    },
+    {
+      title: "Marc Bennett",
+      detail: "London · Sales Director",
+      href: "/travelers",
+    },
+    {
+      title: "Sarah Ruiz",
+      detail: "Madrid · Design Manager",
+      href: "/travelers",
+    },
+    {
+      title: "Acme Europe travel policy",
+      detail: "Economy · €180/night",
+      href: "/policies",
+    },
+    {
+      title: "Flight AF1234 cancelled",
+      detail: "Replacement confirmed",
+      href: "/disruptions",
+    },
+  ].filter((item) =>
+    `${item.title} ${item.detail}`.toLowerCase().includes(query.toLowerCase()),
   );
-}
+  const travelerScreen = ["home", "assistant", "itinerary", "profile"].includes(
+    screen,
+  );
+  const [mobileTitle, mobileSubtitle] = mobileTitles[screen];
 
-function StatusMetric({
-  icon,
-  label,
-  value
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-}) {
   return (
-    <div className="rounded-lg border bg-white p-4 shadow-sm">
-      <div className="flex items-center gap-2 text-muted-foreground">
-        {icon}
-        <span className="text-xs font-medium uppercase tracking-normal">
-          {label}
-        </span>
+    <div
+      className={cn(
+        "app-shell",
+        screen === "design-system" && "showcase-shell",
+      )}
+    >
+      <a href="#main-content" className="skip-link">
+        Skip to content
+      </a>
+      <aside className="sidebar">
+        <Link href="/" className="brand">
+          <span className="brand-mark">
+            <Image
+              src="/images/brand-route.svg"
+              alt=""
+              width={17}
+              height={17}
+            />
+          </span>
+          <span>{PRODUCT_NAME}</span>
+        </Link>
+        <Link href="/profile" className="workspace-switch">
+          <Avatar size="sm">AC</Avatar>
+          <span>
+            <strong>Acme Europe</strong>
+            <small>Business plan</small>
+          </span>
+          <ChevronsUpDown size={13} />
+        </Link>
+        <nav aria-label="Main navigation">
+          {navigation.map(({ label, href, icon: Icon, screens }) => (
+            <Link
+              key={label}
+              href={href}
+              className={cn("nav-item", screens.includes(screen) && "active")}
+              aria-current={screens.includes(screen) ? "page" : undefined}
+            >
+              <Icon size={16} />
+              <span>{label}</span>
+              {label === "Disruptions" && (
+                <span className="notification-count">1</span>
+              )}
+            </Link>
+          ))}
+        </nav>
+        <div className="coordinator-status">
+          <span className="status-dot" />
+          AI coordinator online
+        </div>
+      </aside>
+      <div className="app-workspace">
+        <header className="desktop-header">
+          <span>{breadcrumbs[screen]}</span>
+          <div className="topbar-actions">
+            <div
+              className="search-wrapper"
+              onBlur={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget))
+                  setSearchOpen(false);
+              }}
+            >
+              <div className="search-input">
+                <Search size={14} />
+                <input
+                  ref={searchRef}
+                  aria-label="Search trips and travelers"
+                  placeholder="Search trips, travelers..."
+                  value={query}
+                  onChange={(event) => {
+                    setQuery(event.target.value);
+                    setSearchOpen(true);
+                  }}
+                  onFocus={() => setSearchOpen(true)}
+                />
+                <kbd>⌘ K</kbd>
+              </div>
+              {searchOpen && (
+                <div className="search-results">
+                  {results.length ? (
+                    results.map((item) => (
+                      <Link
+                        key={item.title}
+                        href={item.href}
+                        onClick={() => setSearchOpen(false)}
+                      >
+                        <strong>{item.title}</strong>
+                        <small>{item.detail}</small>
+                      </Link>
+                    ))
+                  ) : (
+                    <p>No matching trips or travelers.</p>
+                  )}
+                </div>
+              )}
+            </div>
+            <Button asChild variant="outline" size="icon" title="Notifications">
+              <Link href="/disruptions" aria-label="Notifications">
+                <Bell size={16} />
+              </Link>
+            </Button>
+            <Link href="/profile" aria-label="Your profile">
+              <Avatar size="sm">AL</Avatar>
+            </Link>
+          </div>
+        </header>
+        <header className="mobile-header">
+          <div>
+            <h1>{mobileTitle}</h1>
+            <p>{mobileSubtitle}</p>
+          </div>
+          <Link href="/profile" aria-label="Your profile">
+            <Avatar>
+              {screen === "assistant" ? <UserRound size={20} /> : "AM"}
+            </Avatar>
+          </Link>
+        </header>
+        <motion.main
+          id="main-content"
+          initial={{ opacity: 0, y: reducedMotion ? 0 : 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: reducedMotion ? 0 : 0.2 }}
+          className={cn(
+            "main-content",
+            travelerScreen && "traveler-content",
+            screen === "assistant" && "assistant-content",
+            screen === "create" && "create-content",
+          )}
+        >
+          {screen === "overview" && (
+            <>
+              <div className="desktop-overview">
+                <Dashboard />
+              </div>
+              <div className="mobile-home">
+                <TravelerHome />
+              </div>
+            </>
+          )}
+          {screen === "trips" && <Dashboard tripsOnly />}
+          {screen === "create" && <CreateTrip />}
+          {screen === "planning" && <Planning />}
+          {screen === "trip" && <TripPlan />}
+          {screen === "disruptions" && <Disruptions />}
+          {screen === "home" && <TravelerHome />}
+          {screen === "assistant" && <Assistant />}
+          {screen === "itinerary" && <Itinerary />}
+          {screen === "travelers" && <TravelersPage />}
+          {screen === "policies" && <PoliciesPage />}
+          {screen === "profile" && <Profile />}
+          {screen === "design-system" && <DesignSystem />}
+        </motion.main>
       </div>
-      <p className="mt-3 text-lg font-semibold">{value}</p>
+      <nav className="mobile-nav" aria-label="Traveler navigation">
+        {[
+          {
+            label: "Home",
+            href: "/",
+            icon: Home,
+            active: ["overview", "home"].includes(screen),
+          },
+          {
+            label: "Assistant",
+            href: "/assistant",
+            icon: Bot,
+            active: screen === "assistant",
+          },
+          {
+            label: "Updates",
+            href: "/disruptions",
+            icon: Bell,
+            active: ["disruptions", "itinerary"].includes(screen),
+          },
+          {
+            label: "Profile",
+            href: "/profile",
+            icon: UserRound,
+            active: screen === "profile",
+          },
+        ].map(({ label, href, icon: Icon, active }) => (
+          <Link
+            key={label}
+            href={href}
+            className={cn(active && "active")}
+            aria-current={active ? "page" : undefined}
+          >
+            <Icon size={22} />
+            <span>{label}</span>
+          </Link>
+        ))}
+      </nav>
     </div>
   );
 }
