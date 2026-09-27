@@ -2936,11 +2936,53 @@ td {
   gap: 18px;
   text-align: center;
 }
+.demo-orbit {
+  position: relative;
+  width: 280px;
+  height: 132px;
+  display: grid;
+  place-items: center;
+}
 .demo-intro .brand-mark {
   width: 54px;
   height: 54px;
   border-radius: 16px;
 }
+.demo-orbit .brand-mark {
+  position: relative;
+  z-index: 2;
+  box-shadow: 0 18px 42px #5b4ef033;
+}
+.demo-orbit-pill {
+  position: absolute;
+  z-index: 1;
+  padding: 8px 12px;
+  color: var(--subtle);
+  font-size: 13px;
+  font-weight: 600;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  box-shadow: 0 14px 36px #10182817;
+}
+.demo-orbit-pill::before {
+  content: "";
+  position: absolute;
+  inset: 50% auto auto 50%;
+  z-index: -1;
+  width: 84px;
+  height: 1px;
+  background: linear-gradient(90deg, #cfd3dd, transparent);
+  transform-origin: left center;
+}
+.demo-orbit-pill.pill-0 { left: 0; top: 18px; }
+.demo-orbit-pill.pill-1 { right: 2px; top: 12px; }
+.demo-orbit-pill.pill-2 { left: 24px; bottom: 8px; }
+.demo-orbit-pill.pill-3 { right: 28px; bottom: 12px; }
+.demo-orbit-pill.pill-0::before,
+.demo-orbit-pill.pill-2::before { transform: rotate(12deg); }
+.demo-orbit-pill.pill-1::before,
+.demo-orbit-pill.pill-3::before { transform: rotate(168deg); }
 .demo-intro h1 {
   max-width: 760px;
   font-size: clamp(42px, 7vw, 86px);
@@ -2955,6 +2997,7 @@ td {
   font-size: clamp(34px, 5vw, 64px);
 }
 .demo-app-frame {
+  position: relative;
   width: min(1180px, 100%);
   height: min(760px, calc(100svh - 44px));
   min-height: 620px;
@@ -2966,7 +3009,46 @@ td {
   border-radius: 20px;
   box-shadow: 0 24px 70px #1018281f;
 }
+.demo-frame-glow {
+  position: absolute;
+  inset: -1px;
+  pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(120deg, #6f5cf017, transparent 28%, #16a37a12 60%, transparent);
+}
+.demo-interface-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.demo-interface-grid span {
+  position: absolute;
+  background: linear-gradient(90deg, transparent, #66708521, transparent);
+  transform-origin: left center;
+}
+.demo-interface-grid span:nth-child(1) {
+  left: 248px;
+  right: 0;
+  top: 62px;
+  height: 1px;
+}
+.demo-interface-grid span:nth-child(2) {
+  left: 248px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+.demo-interface-grid span:nth-child(3) {
+  left: 282px;
+  right: 34px;
+  bottom: 96px;
+  height: 1px;
+  opacity: 0.55;
+}
 .demo-sidebar {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -2994,6 +3076,8 @@ td {
   margin-top: auto;
 }
 .demo-workspace {
+  position: relative;
+  z-index: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -3024,9 +3108,20 @@ td {
   align-items: stretch;
 }
 .demo-request {
+  position: relative;
   min-height: 340px;
+  overflow: hidden;
+}
+.demo-composer-sheen {
+  position: absolute;
+  inset: 0 auto 0 -45%;
+  width: 34%;
+  background: linear-gradient(90deg, transparent, #ffffff88, transparent);
+  transform: skewX(-12deg);
+  animation: demo-sheen 4.8s ease-in-out infinite;
 }
 .demo-request p {
+  position: relative;
   min-height: 190px;
   padding: 18px;
   color: var(--ink);
@@ -3111,6 +3206,39 @@ td {
 }
 .demo-route-card h2 {
   font-size: 18px;
+}
+.demo-route-line {
+  position: relative;
+  min-width: 118px;
+  overflow: hidden;
+}
+.demo-route-draw {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 18px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--purple), #16a37a, transparent);
+  transform-origin: left center;
+}
+.demo-route-line.tone-warning .demo-route-draw {
+  background: linear-gradient(90deg, transparent, #d68b16, var(--purple), transparent);
+}
+.demo-route-plane {
+  position: relative;
+  z-index: 1;
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  color: var(--purple);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  box-shadow: 0 8px 18px #10182817;
+}
+.demo-route-line.tone-warning .demo-route-plane {
+  color: #b86e09;
 }
 .demo-scan-bar {
   height: 5px;
@@ -3220,6 +3348,7 @@ td {
   height: 2px;
   background: #b42318;
   transform: rotate(-8deg);
+  transform-origin: left center;
 }
 .demo-original {
   opacity: 0.72;
@@ -3287,6 +3416,12 @@ td {
   padding: clamp(12px, 2vw, 24px);
 }
 
+@keyframes demo-sheen {
+  0%, 46% { transform: translateX(0) skewX(-12deg); opacity: 0; }
+  58% { opacity: 1; }
+  76%, 100% { transform: translateX(420%) skewX(-12deg); opacity: 0; }
+}
+
 @media (max-width: 960px) {
   .demo-app-frame {
     min-height: 0;
@@ -3294,6 +3429,12 @@ td {
     grid-template-columns: 1fr;
   }
   .demo-sidebar {
+    display: none;
+  }
+  .demo-interface-grid span:nth-child(1) {
+    left: 0;
+  }
+  .demo-interface-grid span:nth-child(2) {
     display: none;
   }
   .demo-main {
@@ -3340,6 +3481,13 @@ td {
   }
   .demo-intro {
     min-height: calc(100svh - 24px);
+  }
+  .demo-orbit {
+    width: 250px;
+  }
+  .demo-orbit-pill {
+    font-size: 12px;
+    padding: 7px 10px;
   }
   .demo-phone {
     border-width: 7px;

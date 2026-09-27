@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion, useReducedMotion, type Variants } from "motion/react";
 import {
   Building2,
   CalendarCheck,
@@ -124,10 +124,23 @@ const workflow = [
   { key: "optimizer", label: "Optimizer", icon: Route },
 ];
 
-const sceneVariants = {
-  initial: { opacity: 0, y: 14, filter: "blur(4px)" },
-  animate: { opacity: 1, y: 0, filter: "blur(0px)" },
-  exit: { opacity: 0, y: -10, filter: "blur(3px)" },
+const motionEase = "easeOut" as const;
+const sceneVariants: Variants = {
+  initial: { opacity: 0, y: 26, scale: 0.985, filter: "blur(8px)" },
+  animate: { opacity: 1, y: 0, scale: 1, filter: "blur(0px)" },
+  exit: { opacity: 0, y: -18, scale: 1.01, filter: "blur(7px)" },
+};
+const shellVariants: Variants = {
+  initial: { opacity: 0, y: 28, scale: 0.96 },
+  animate: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.52, ease: motionEase, staggerChildren: 0.08, delayChildren: 0.1 } },
+};
+const interfacePieceVariants: Variants = {
+  initial: { opacity: 0, y: 18 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.42, ease: motionEase } },
+};
+const cardVariants: Variants = {
+  initial: { opacity: 0, y: 18, scale: 0.97 },
+  animate: (index = 0) => ({ opacity: 1, y: 0, scale: 1, transition: { delay: Number(index) * 0.13, duration: 0.38, ease: motionEase } }),
 };
 
 export function DemoShowcase({ clean = false }: { clean?: boolean }) {
@@ -276,22 +289,32 @@ function SceneContent({ scene, sceneProgress }: { scene: DemoScene; sceneProgres
 }
 
 function IntroScene() {
+  const modules = ["Calendar", "Policy", "Jinko", "Gmail"];
   return (
     <div className="demo-intro">
-      <motion.span className="brand-mark" initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.35 }}>
-        <Route size={24} />
-      </motion.span>
-      <motion.h1 initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1, duration: 0.35 }}>Travel Manager</motion.h1>
-      <motion.p initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.24, duration: 0.35 }}>Get everyone there. Whatever happens.</motion.p>
+      <div className="demo-orbit" aria-hidden="true">
+        {modules.map((item, index) => <motion.span key={item} className={"demo-orbit-pill pill-" + index} initial={{ opacity: 0, scale: 0.82, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ delay: 0.24 + index * 0.12, duration: 0.42 }}>{item}</motion.span>)}
+        <motion.span className="brand-mark" initial={{ scale: 0.78, opacity: 0, rotate: -10 }} animate={{ scale: 1, opacity: 1, rotate: 0 }} transition={{ duration: 0.52, ease: "easeOut" }}>
+          <Route size={24} />
+        </motion.span>
+      </div>
+      <motion.h1 initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.16, duration: 0.42 }}>Travel Manager</motion.h1>
+      <motion.p initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.34, duration: 0.42 }}>Get everyone there. Whatever happens.</motion.p>
     </div>
   );
 }
 
 function DemoShell({ children, label = "Travel overview" }: { children: React.ReactNode; label?: string }) {
   return (
-    <div className="demo-app-frame">
-      <aside className="demo-sidebar">
-        <div className="brand"><span className="brand-mark"><Route size={17} /></span><span>Travel Manager</span></div>
+    <motion.div className="demo-app-frame" variants={shellVariants} initial="initial" animate="animate">
+      <div className="demo-frame-glow" aria-hidden="true" />
+      <motion.div className="demo-interface-grid" aria-hidden="true" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.18, duration: 0.45 }}>
+        <span />
+        <span />
+        <span />
+      </motion.div>
+      <motion.aside className="demo-sidebar" variants={interfacePieceVariants}>
+        <motion.div className="brand" variants={interfacePieceVariants}><span className="brand-mark"><Route size={17} /></span><span>Travel Manager</span></motion.div>
         {[
           ["Overview", LayoutDashboard],
           ["Trips", Plane],
@@ -300,18 +323,18 @@ function DemoShell({ children, label = "Travel overview" }: { children: React.Re
           ["Disruptions", TriangleAlert],
         ].map(([item, Icon]) => {
           const RealIcon = Icon as typeof LayoutDashboard;
-          return <div className={cn("demo-nav-item", item === "Trips" && "active")} key={String(item)}><RealIcon size={16} /><span>{String(item)}</span></div>;
+          return <motion.div className={cn("demo-nav-item", item === "Trips" && "active")} key={String(item)} variants={interfacePieceVariants}><RealIcon size={16} /><span>{String(item)}</span></motion.div>;
         })}
-        <div className="coordinator-status"><span className="status-dot" />AI coordinator online</div>
-      </aside>
-      <div className="demo-workspace">
-        <header className="desktop-header demo-header">
+        <motion.div className="coordinator-status" variants={interfacePieceVariants}><span className="status-dot" />AI coordinator online</motion.div>
+      </motion.aside>
+      <motion.div className="demo-workspace" variants={interfacePieceVariants}>
+        <motion.header className="desktop-header demo-header" variants={interfacePieceVariants}>
           <span>{label}</span>
           <div className="topbar-actions"><Badge tone="success">Demo data</Badge><Avatar size="sm">EL</Avatar></div>
-        </header>
-        <div className="demo-main">{children}</div>
-      </div>
-    </div>
+        </motion.header>
+        <motion.div className="demo-main" variants={interfacePieceVariants}>{children}</motion.div>
+      </motion.div>
+    </motion.div>
   );
 }
 
@@ -321,15 +344,16 @@ function TripRequestScene({ sceneProgress }: { sceneProgress: number }) {
   return (
     <DemoShell label="Trips / Create trip">
       <div className="demo-two-column">
-        <section className="request-box demo-request">
+        <motion.section className="request-box demo-request" variants={cardVariants} custom={0} initial="initial" animate="animate">
+          <span className="demo-composer-sheen" aria-hidden="true" />
           <div className="section-heading">
             <div className="inline-detail"><span className="icon-box tone-primary"><Sparkles size={16} /></span><strong>Ask Travel Manager</strong></div>
             <Badge>Emma Laurent</Badge>
           </div>
           <p>{visibleText}<motion.span animate={{ opacity: [0, 1, 0] }} transition={{ repeat: Infinity, duration: 1 }}>|</motion.span></p>
           <div className="request-footer"><span>Natural-language request · Berlin Operations Summit</span></div>
-        </section>
-        <section className="surface demo-trip-summary">
+        </motion.section>
+        <motion.section className="surface demo-trip-summary" variants={cardVariants} custom={1} initial="initial" animate="animate">
           <h2>Northstar Labs</h2>
           <p className="muted">Emma coordinates Alice, Marc and Sarah across three origin cities.</p>
           <div className="demo-mini-grid">
@@ -346,7 +370,7 @@ function TripRequestScene({ sceneProgress }: { sceneProgress: number }) {
             ))}
           </div>
           <Button className="demo-plan-button"><Sparkles size={16} />Plan trip</Button>
-        </section>
+        </motion.section>
       </div>
     </DemoShell>
   );
@@ -374,7 +398,7 @@ function WorkflowScene({ title, subtitle, active, rows, recovery = false }: { ti
   return (
     <DemoShell label={recovery ? "Disruptions / Recovery" : "Trips / Planning"}>
       <DemoHeading title={title} subtitle={subtitle} tone={recovery ? "warning" : "primary"} />
-      <section className="workflow-surface demo-workflow">
+      <motion.section className="workflow-surface demo-workflow" variants={cardVariants} initial="initial" animate="animate">
         <div className="coordinator-card"><span className="coordinator-icon"><Sparkles size={25} /></span><div><small>Travel AI coordinator</small><p>{recovery ? "Recovering the affected itinerary" : "Coordinating calendars, travel and policy"}</p></div><span className="live-label"><span className="status-dot" />Running</span></div>
         <div className="workflow-nodes">
           {workflow.map(({ key, label, icon: Icon }, index) => (
@@ -385,7 +409,7 @@ function WorkflowScene({ title, subtitle, active, rows, recovery = false }: { ti
           ))}
         </div>
         <div className="workflow-caption"><span>Berlin Operations Summit</span><span>3 travelers</span></div>
-      </section>
+      </motion.section>
       <div className="demo-status-list">
         {rows.map(([name, detail], index) => <AnimatedCheck key={name} label={name} value={detail} delay={0.2 + index * 0.18} />)}
       </div>
@@ -407,7 +431,7 @@ function TravelSearchScene() {
           <h2>{person.name}</h2>
           <div className="flight-route">
             <div><strong>{person.airport}</strong><small>{person.city}</small></div>
-            <div className="flight-route-line"><Plane size={20} /><small>Direct preferred</small></div>
+            <AnimatedRouteLine label="Direct preferred" delay={0.28 + index * 0.12} />
             <div><strong>BER</strong><small>Berlin</small></div>
           </div>
           <motion.div className="demo-scan-bar" initial={{ width: "22%" }} animate={{ width: "100%" }} transition={{ duration: 1.6, repeat: Infinity, repeatType: "reverse" }} />
@@ -443,7 +467,7 @@ function OptimizingScene() {
     <DemoShell label="Trips / Optimizer">
       <DemoHeading title="Ranking candidate bundles" subtitle="The balanced plan wins on cost, arrival time and lost work hours." />
       <div className="demo-bundle-grid">
-        {bundles.map(([name, price, detail, score], index) => <motion.section className={cn("surface demo-bundle", name === "Balanced" && "selected")} key={name} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.16 }}>
+        {bundles.map(([name, price, detail, score], index) => <motion.section className={cn("surface demo-bundle", name === "Balanced" && "selected")} key={name} initial={{ opacity: 0, y: 14, rotateX: 7 }} animate={{ opacity: 1, y: 0, rotateX: 0 }} transition={{ delay: index * 0.16, duration: 0.42 }}>
           <div className="between"><h2>{name}</h2>{name === "Balanced" && <Badge tone="success">Recommended</Badge>}</div>
           <strong>{price}</strong>
           <p className="muted">{detail}</p>
@@ -480,22 +504,22 @@ function MobileScene({ updated }: { updated: boolean }) {
         <h1>{updated ? "Alice stays informed automatically." : "Alice receives a clear mobile itinerary."}</h1>
         <p>{updated ? "The affected flight is replaced, and the meeting remains safe." : "No dashboard login required for travelers."}</p>
       </div>
-      <motion.div className="demo-phone" initial={{ opacity: 0, x: 26 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.36 }}>
+      <motion.div className="demo-phone" initial={{ opacity: 0, x: 34, rotate: 1.8, scale: 0.96 }} animate={{ opacity: 1, x: 0, rotate: 0, scale: 1 }} transition={{ duration: 0.48, ease: "easeOut" }}>
         <div className="demo-phone-bar" />
-        <section className="surface welcome-panel">
+        <motion.section className="surface welcome-panel" variants={cardVariants} custom={0} initial="initial" animate="animate">
           <div className="welcome-copy"><div><small className="uppercase">Good morning</small><h2>Hello, Alice</h2><p>{updated ? "Your new route is confirmed for review." : "Your Berlin trip is ready."}</p></div><Avatar>AM</Avatar></div>
-        </section>
-        <div className={cn("flight-card", updated && "demo-flight-updated")}>
+        </motion.section>
+        <motion.div className={cn("flight-card", updated && "demo-flight-updated")} variants={cardVariants} custom={1} initial="initial" animate="animate">
           <div className="between"><span className="uppercase">{updated ? "Replacement route" : "Outbound flight"}</span><Badge tone={updated ? "warning" : "success"}>{updated ? "Updated" : "On time"}</Badge></div>
-          <div className="flight-route"><div><strong>CDG</strong><small>Paris</small></div><div className="flight-route-line"><Plane size={21} /><small>{updated ? "via FRA" : "Direct · 1h45"}</small></div><div><strong>BER</strong><small>Berlin</small></div></div>
+          <div className="flight-route"><div><strong>CDG</strong><small>Paris</small></div><AnimatedRouteLine label={updated ? "via FRA" : "Direct · 1h45"} delay={0.38} iconSize={21} warning={updated} /><div><strong>BER</strong><small>Berlin</small></div></div>
           <div className="flight-facts"><div><small>Departure</small><strong>{updated ? "13:35" : "14:55"}</strong></div><div><small>Arrival</small><strong>{updated ? "17:20" : "16:40"}</strong></div><div><small>Seat</small><strong>{updated ? "14C" : "12A"}</strong></div></div>
-        </div>
-        <section className="surface glance-panel">
+        </motion.div>
+        <motion.section className="surface glance-panel" variants={cardVariants} custom={2} initial="initial" animate="animate">
           <h2>Your trip at a glance</h2>
           <MobileRow icon={Building2} title="Hotel" value="Motel One Alexanderplatz" detail="Check-in from 15:00" />
           <MobileRow icon={CalendarCheck} title="Meeting" value="Wed · 09:00" detail="Alexanderplatz, Berlin" />
           <MobileRow icon={Route} title={updated ? "Recovery" : "Route"} value={updated ? "Meeting unaffected" : "Direct flight"} detail={updated ? "+EUR 67 · within policy" : "Arrival before 18:00"} />
-        </section>
+        </motion.section>
       </motion.div>
     </div>
   );
@@ -505,15 +529,15 @@ function DisruptionScene() {
   return (
     <DemoShell label="Disruptions">
       <div className="demo-disruption-layout">
-        <section className="surface demo-alert-panel">
+        <motion.section className="surface demo-alert-panel" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.38 }}>
           <div className="inline-detail"><span className="icon-box tone-warning"><TriangleAlert size={16} /></span><strong>Flight cancelled</strong></div>
           <h1>Alice&apos;s outbound flight is affected.</h1>
           <p className="muted">The agent detects the carrier notice and opens a recovery workflow before the meeting is at risk.</p>
-        </section>
+        </motion.section>
         <motion.section className="surface demo-cancelled-flight" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }}>
           <div className="between"><Badge tone="warning">Cancelled</Badge><small>AF 1734</small></div>
-          <div className="flight-route"><div><strong>CDG</strong><small>Paris</small></div><div className="flight-route-line"><Plane size={20} /><small>Original</small></div><div><strong>BER</strong><small>Berlin</small></div></div>
-          <div className="demo-strike" />
+          <div className="flight-route"><div><strong>CDG</strong><small>Paris</small></div><AnimatedRouteLine label="Original" delay={0.34} /><div><strong>BER</strong><small>Berlin</small></div></div>
+          <motion.div className="demo-strike" initial={{ clipPath: "inset(0 100% 0 0)" }} animate={{ clipPath: "inset(0 0% 0 0)" }} transition={{ delay: 0.62, duration: 0.36 }} />
         </motion.section>
       </div>
     </DemoShell>
@@ -525,16 +549,16 @@ function UpdatedPlanScene() {
     <DemoShell label="Disruptions / Replacement">
       <DemoHeading title="Replacement proposed" subtitle="The new plan stays within timing and policy constraints." tone="warning" />
       <div className="demo-update-grid">
-        <section className="surface demo-original">
+        <motion.section className="surface demo-original" initial={{ opacity: 0, x: -22 }} animate={{ opacity: 0.72, x: 0 }} transition={{ duration: 0.36 }}>
           <Badge tone="warning">Original</Badge>
           <h2>{"Paris -> Berlin"}</h2>
           <p>AF 1734 · Cancelled</p>
-        </section>
-        <section className="surface demo-replacement">
+        </motion.section>
+        <motion.section className="surface demo-replacement" initial={{ opacity: 0, x: 30, scale: 0.97 }} animate={{ opacity: 1, x: 0, scale: 1 }} transition={{ delay: 0.22, duration: 0.42 }}>
           <Badge tone="success">Replacement</Badge>
           <h2>{"Paris -> Frankfurt -> Berlin"}</h2>
           <p>Arrival: 17:20 · Additional cost: +EUR 67</p>
-        </section>
+        </motion.section>
       </div>
       <div className="demo-status-list compact">
         <AnimatedCheck label="Policy" value="Within policy" delay={0.05} />
@@ -548,9 +572,9 @@ function UpdatedPlanScene() {
 function OutroScene() {
   return (
     <div className="demo-intro demo-outro">
-      <span className="brand-mark"><Sparkles size={24} /></span>
-      <h1>Give us the people, destination and constraints.</h1>
-      <p>Travel Manager makes sure everyone gets there.</p>
+      <motion.span className="brand-mark" initial={{ opacity: 0, scale: 0.82 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.42 }}><Sparkles size={24} /></motion.span>
+      <motion.h1 initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.16, duration: 0.42 }}>Give us the people, destination and constraints.</motion.h1>
+      <motion.p initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.32, duration: 0.42 }}>Travel Manager makes sure everyone gets there.</motion.p>
     </div>
   );
 }
@@ -576,9 +600,19 @@ function TravelerPlanCard({ person, delay }: { person: (typeof travelers)[number
   return (
     <motion.section className="surface demo-traveler-card" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay, duration: 0.3 }}>
       <div className="between"><div className="person"><Avatar>{person.initials}</Avatar><div><strong>{person.name}</strong><small>{person.role} · {person.airport}</small></div></div><Badge tone="success">Compliant</Badge></div>
-      <div className="flight-route"><div><strong>{person.airport}</strong><small>{person.city}</small></div><div className="flight-route-line"><Plane size={20} /><small>Direct</small></div><div><strong>BER</strong><small>Berlin</small></div></div>
+      <div className="flight-route"><div><strong>{person.airport}</strong><small>{person.city}</small></div><AnimatedRouteLine label="Direct" delay={delay + 0.16} /><div><strong>BER</strong><small>Berlin</small></div></div>
       <div className="flight-facts"><div><small>Time</small><strong>{person.time}</strong></div><div><small>Preference</small><strong>{person.seat}</strong></div><div><small>Cost</small><strong>EUR {person.cost}</strong></div></div>
     </motion.section>
+  );
+}
+
+function AnimatedRouteLine({ label, delay = 0, iconSize = 20, warning = false }: { label: string; delay?: number; iconSize?: number; warning?: boolean }) {
+  return (
+    <div className={cn("flight-route-line demo-route-line", warning && "tone-warning")}>
+      <motion.span className="demo-route-draw" initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ delay, duration: 0.46, ease: "easeOut" }} />
+      <motion.span className="demo-route-plane" initial={{ x: "-42%", opacity: 0 }} animate={{ x: "42%", opacity: 1 }} transition={{ delay: delay + 0.06, duration: 0.52, ease: "easeOut" }}><Plane size={iconSize} /></motion.span>
+      <small>{label}</small>
+    </div>
   );
 }
 
