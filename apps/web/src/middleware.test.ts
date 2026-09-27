@@ -12,7 +12,7 @@ beforeEach(() => {
   auth.client.mockReturnValue({ auth: { getUser: auth.getUser } });
 });
 describe("auth middleware", () => {
-  it.each(["/api/travelers", "/api/google/traveler/callback", "/api/events", "/login", "/auth/callback", "/r/signed-token"])("does not redirect the public/self-authenticated route %s", async (path) => {
+  it.each(["/api/travelers", "/api/google/traveler/callback", "/api/events", "/login", "/auth/callback", "/r/signed-token", "/demo"])("does not redirect the public/self-authenticated route %s", async (path) => {
     const response = await middleware(new NextRequest("http://localhost:3000" + path));
     expect(response.status).toBe(200);
     expect(response.headers.get("location")).toBeNull();

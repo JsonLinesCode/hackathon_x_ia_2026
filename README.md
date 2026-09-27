@@ -81,10 +81,10 @@ Reviewer links for the mock week:
 
 | Calendar | Public reviewer link |
 | --- | --- |
-| Emma Laurent | Add public Google Calendar URL |
-| Alice Martin | Add public Google Calendar URL |
-| Marc Evans | Add public Google Calendar URL |
-| Sarah Garcia | Add public Google Calendar URL |
+| Emma Laurent | <https://calendar.google.com/calendar/u/3?cid=ZW1tYS5sYXVyZW50LmRlbW9jcm91dGVAZ21haWwuY29t> |
+| Alice Martin | <https://calendar.google.com/calendar/u/4?cid=YWxpY2UubWFydGluLmRlbW9jcm91dGVAZ21haWwuY29t> |
+| Marc Evans | <https://calendar.google.com/calendar/u/7?cid=bWFyYy5ldmFucy5kZW1vY3JvdXRlQGdtYWlsLmNvbQ> |
+| Sarah Garcia | <https://calendar.google.com/calendar/u/5?cid=c2FyYWguZ2FyY2lhLmRlbW9jcm91dGVAZ21haWwuY29t> |
 
 If the copied public URL opens on the current date instead of the demo week,
 append `&mode=WEEK&dates=20261012/20261019` to the Google Calendar embed URL so
@@ -119,6 +119,50 @@ produce messages naming the variables. The build requires no runtime credentials
 All planned variable names are declared in turbo.json globalEnv.
 Service keys, Google provider tokens, APP_SECRET and other secrets must never use a
 NEXT_PUBLIC_ prefix. The existing .gitignore excludes apps/web/.env.local.
+
+## Vercel deployment
+
+The repository is ready to deploy from the monorepo root. `vercel.json` tells
+Vercel to install with pnpm, build only the web app and its workspace
+dependencies, and serve the Next.js output from `apps/web/.next`.
+
+In Vercel, create or update the project with these settings:
+
+| Setting | Value |
+| --- | --- |
+| Framework Preset | Next.js |
+| Root Directory | repository root |
+| Install Command | `corepack enable && pnpm install --frozen-lockfile` |
+| Build Command | `pnpm build --filter=@repo/web...` |
+| Output Directory | `apps/web/.next` |
+| Node.js Version | 22.x |
+
+Add the environment variables from [.env.example](.env.example) to the Vercel
+project. Set `APP_URL` to the exact production origin, for example
+`https://your-project.vercel.app` or your custom domain, with no trailing slash.
+Use long random values for `APP_SECRET` and `SIMULATION_SECRET`; do not use local
+development values in production.
+
+After the first deployment, copy the final production URL and update OAuth
+configuration in both Supabase and Google Cloud:
+
+1. Supabase Authentication -> URL Configuration:
+   set Site URL to your production `APP_URL`.
+2. Supabase Authentication -> URL Configuration:
+   add `https://YOUR_PRODUCTION_DOMAIN/auth/callback` to Redirect URLs.
+3. Google Cloud OAuth client:
+   keep the Supabase provider redirect URI,
+   `https://YOUR_PROJECT.supabase.co/auth/v1/callback`.
+4. Google Cloud OAuth client:
+   add `https://YOUR_PRODUCTION_DOMAIN/api/google/traveler/callback` for traveler
+   calendar consent.
+5. Keep local development callbacks if you still test locally:
+   `http://localhost:3000/auth/callback` in Supabase and
+   `http://localhost:3000/api/google/traveler/callback` in Google Cloud.
+
+Manager sign-in goes through Supabase, so Google Cloud needs the Supabase
+provider callback. Traveler calendar consent is handled directly by the Next.js
+app, so Google Cloud also needs the app callback above.
 
 ## Manual Supabase setup
 
