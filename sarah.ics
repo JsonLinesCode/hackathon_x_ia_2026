@@ -1,0 +1,62 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Northstar Labs//Travel Demo//EN
+CALSCALE:GREGORIAN
+BEGIN:VEVENT
+UID:sarah-20261012-marketing-weekly@northstar-demo.local
+DTSTAMP:20260927T120000Z
+DTSTART;TZID=Europe/Madrid:20261012T100000
+DTEND;TZID=Europe/Madrid:20261012T110000
+SUMMARY:Marketing Weekly
+DESCRIPTION:Weekly marketing priorities\, campaign status\, and launch planning.
+END:VEVENT
+BEGIN:VEVENT
+UID:sarah-20261012-campaign-review@northstar-demo.local
+DTSTAMP:20260927T120000Z
+DTSTART;TZID=Europe/Madrid:20261012T150000
+DTEND;TZID=Europe/Madrid:20261012T160000
+SUMMARY:Campaign Review
+DESCRIPTION:Review campaign performance\, creative updates\, and next actions.
+END:VEVENT
+BEGIN:VEVENT
+UID:sarah-20261013-spain-marketing-standup@northstar-demo.local
+DTSTAMP:20260927T120000Z
+DTSTART;TZID=Europe/Madrid:20261013T083000
+DTEND;TZID=Europe/Madrid:20261013T093000
+SUMMARY:Spain Marketing Standup
+DESCRIPTION:Local marketing standup for priorities and blockers.
+END:VEVENT
+BEGIN:VEVENT
+UID:sarah-20261013-agency-review@northstar-demo.local
+DTSTAMP:20260927T120000Z
+DTSTART;TZID=Europe/Madrid:20261013T100000
+DTEND;TZID=Europe/Madrid:20261013T113000
+SUMMARY:Agency Review
+DESCRIPTION:Review agency deliverables\, campaign assets\, and pending feedback.
+END:VEVENT
+BEGIN:VEVENT
+UID:sarah-20261013-campaign-approval@northstar-demo.local
+DTSTAMP:20260927T120000Z
+DTSTART;TZID=Europe/Madrid:20261013T120000
+DTEND;TZID=Europe/Madrid:20261013T130000
+SUMMARY:Campaign Approval
+DESCRIPTION:Final review and approval of campaign materials.
+END:VEVENT
+BEGIN:VEVENT
+UID:sarah-20261014-q4-europe-operations-summit@northstar-demo.local
+DTSTAMP:20260927T120000Z
+DTSTART;TZID=Europe/Berlin:20261014T090000
+DTEND;TZID=Europe/Berlin:20261014T170000
+SUMMARY:Q4 Europe Operations Summit
+DESCRIPTION:Northstar Labs European Operations Summit.\nSarah is attending as Marketing Manager.
+LOCATION:Alexanderplatz\, Berlin\, Germany
+END:VEVENT
+BEGIN:VEVENT
+UID:sarah-20261015-campaign-launch-review@northstar-demo.local
+DTSTAMP:20260927T120000Z
+DTSTART;TZID=Europe/Madrid:20261015T160000
+DTEND;TZID=Europe/Madrid:20261015T170000
+SUMMARY:Campaign Launch Review
+DESCRIPTION:Review launch readiness\, channel timing\, and campaign ownership.
+END:VEVENT
+END:VCALENDAR

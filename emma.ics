@@ -1,0 +1,54 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Northstar Labs//Travel Demo//EN
+CALSCALE:GREGORIAN
+BEGIN:VEVENT
+UID:emma-20261012-weekly-operations-sync@northstar-demo.local
+DTSTAMP:20260927T120000Z
+DTSTART;TZID=Europe/Paris:20261012T093000
+DTEND;TZID=Europe/Paris:20261012T100000
+SUMMARY:Weekly Operations Sync
+DESCRIPTION:Weekly review of travel operations priorities and active coordination topics.
+END:VEVENT
+BEGIN:VEVENT
+UID:emma-20261012-vendor-review@northstar-demo.local
+DTSTAMP:20260927T120000Z
+DTSTART;TZID=Europe/Paris:20261012T140000
+DTEND;TZID=Europe/Paris:20261012T150000
+SUMMARY:Vendor Review
+DESCRIPTION:Review vendor performance\, open issues\, and upcoming travel support needs.
+END:VEVENT
+BEGIN:VEVENT
+UID:emma-20261013-finance-review@northstar-demo.local
+DTSTAMP:20260927T120000Z
+DTSTART;TZID=Europe/Paris:20261013T090000
+DTEND;TZID=Europe/Paris:20261013T100000
+SUMMARY:Finance Review
+DESCRIPTION:Monthly budget and expense review with finance stakeholders.
+END:VEVENT
+BEGIN:VEVENT
+UID:emma-20261013-berlin-offsite-final-check@northstar-demo.local
+DTSTAMP:20260927T120000Z
+DTSTART;TZID=Europe/Paris:20261013T113000
+DTEND;TZID=Europe/Paris:20261013T120000
+SUMMARY:Berlin Offsite Final Check
+DESCRIPTION:Final readiness check for the Berlin summit travel plan.
+END:VEVENT
+BEGIN:VEVENT
+UID:emma-20261014-q4-europe-operations-summit@northstar-demo.local
+DTSTAMP:20260927T120000Z
+DTSTART;TZID=Europe/Berlin:20261014T090000
+DTEND;TZID=Europe/Berlin:20261014T170000
+SUMMARY:Q4 Europe Operations Summit
+DESCRIPTION:Northstar Labs European Operations Summit.\nMain topics: Q4 operational review\, 2027 planning\, European team alignment\, budget review.
+LOCATION:Alexanderplatz\, Berlin\, Germany
+END:VEVENT
+BEGIN:VEVENT
+UID:emma-20261015-q4-follow-up@northstar-demo.local
+DTSTAMP:20260927T120000Z
+DTSTART;TZID=Europe/Paris:20261015T150000
+DTEND;TZID=Europe/Paris:20261015T160000
+SUMMARY:Q4 Follow-up
+DESCRIPTION:Post-summit follow-up on decisions\, actions\, and owner assignments.
+END:VEVENT
+END:VCALENDAR

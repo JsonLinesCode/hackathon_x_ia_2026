@@ -6,6 +6,90 @@ OpenAI extraction, live Jinko search and unpaid quotes, Google coordination,
 disruption recovery, private receipts and approved expense reports. The existing
 desktop and mobile layout is retained. Phase 6 (assistant) remains unimplemented.
 
+## Demo scenario
+
+Northstar Labs uses Travel Manager to coordinate multi-person business travel.
+Emma Laurent, a Travel Manager based in Paris, is the primary user. She signs
+into the dashboard and asks the agent to organize the Berlin Operations Summit
+trip for three employees while respecting calendars, travel preferences, policy
+and a target total budget of EUR 2,500.
+
+The travelers are Alice Martin, Product Manager in Paris, Marc Evans, Sales
+Manager in London, and Sarah Garcia, Marketing Manager in Madrid. Alice travels
+from CDG, is busy until 14:30 on Tuesday, prefers direct flights, avoids
+departures before 07:00 and prefers a window seat. Marc travels from LHR, is
+busy until 12:00 on Tuesday, prefers Heathrow, avoids very early departures and
+prefers an aisle seat. Sarah travels from MAD, is available from early Tuesday
+afternoon, needs to be back in Madrid by late Thursday afternoon, requires
+checked luggage and prefers direct flights.
+
+The trip runs October 13-15, 2026, with the Q4 Europe Operations Summit on
+October 14, 2026 from 09:00 to 17:00 at Alexanderplatz, Berlin
+(`Europe/Berlin`). In the demo, Emma enters a natural-language request for the
+Berlin trip. The agent extracts the requirements, checks traveler availability
+with Google Calendar, searches travel options with Jinko, evaluates company
+policy, ranks the best itineraries and presents the recommendation to Emma.
+Travelers can then receive confirmation emails and calendar invitations.
+
+The disruption story shows why the product matters after planning: Alice's
+flight is cancelled, so the agent searches for alternatives, checks policy and
+timing constraints, proposes a replacement, keeps Emma informed and updates the
+traveler-facing itinerary.
+
+## Demo accounts
+
+The demo uses separate fictional Google accounts so reviewers can see realistic
+Google Calendar, Gmail, traveler consent, availability and email communication
+flows. Emma is the only person who signs into the Travel Manager dashboard.
+Alice, Marc and Sarah are traveler records in the application; their Google
+accounts only provide realistic calendars and email interactions. Reviewers do
+not need to log into the traveler accounts.
+
+```text
+Emma Laurent
+Travel Manager
+|
+v
+Travel Manager app
+|
++--> Google Calendar
++--> Gmail
++--> OpenAI
++--> Jinko
+|
+v
+Alice / Marc / Sarah
+Travelers
+```
+
+### Public calendar links for reviewers
+
+For demo review, make only the four fictional Google calendars public. This
+lets judges inspect the imported mock agendas without signing into the traveler
+accounts or seeing any credentials.
+
+For each fictional Google account, open Google Calendar on a computer:
+
+1. Go to Settings -> Settings for my calendars -> the imported demo calendar.
+2. Under Access permissions for events, enable Make available to public.
+3. Set the permission to See all event details.
+4. Under Integrate calendar, copy Public URL to this calendar.
+5. Share that public URL with reviewers. Do not share passwords, recovery
+   details, API keys, OAuth tokens or the Secret address in iCal format.
+
+Reviewer links for the mock week:
+
+| Calendar | Public reviewer link |
+| --- | --- |
+| Emma Laurent | Add public Google Calendar URL |
+| Alice Martin | Add public Google Calendar URL |
+| Marc Evans | Add public Google Calendar URL |
+| Sarah Garcia | Add public Google Calendar URL |
+
+If the copied public URL opens on the current date instead of the demo week,
+append `&mode=WEEK&dates=20261012/20261019` to the Google Calendar embed URL so
+reviewers land directly on the week containing October 12-15, 2026.
+
 ## Local setup
 
 Use Node.js 22 or newer and the pinned pnpm version (10.17.1).

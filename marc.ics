@@ -1,0 +1,54 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Northstar Labs//Travel Demo//EN
+CALSCALE:GREGORIAN
+BEGIN:VEVENT
+UID:marc-20261012-sales-pipeline-review@northstar-demo.local
+DTSTAMP:20260927T120000Z
+DTSTART;TZID=Europe/London:20261012T090000
+DTEND;TZID=Europe/London:20261012T100000
+SUMMARY:Sales Pipeline Review
+DESCRIPTION:Review active sales pipeline\, key opportunities\, and next steps.
+END:VEVENT
+BEGIN:VEVENT
+UID:marc-20261012-customer-success-sync@northstar-demo.local
+DTSTAMP:20260927T120000Z
+DTSTART;TZID=Europe/London:20261012T133000
+DTEND;TZID=Europe/London:20261012T143000
+SUMMARY:Customer Success Sync
+DESCRIPTION:Coordinate customer updates and commercial follow-up priorities.
+END:VEVENT
+BEGIN:VEVENT
+UID:marc-20261013-uk-sales-meeting@northstar-demo.local
+DTSTAMP:20260927T120000Z
+DTSTART;TZID=Europe/London:20261013T090000
+DTEND;TZID=Europe/London:20261013T103000
+SUMMARY:UK Sales Meeting
+DESCRIPTION:Weekly UK sales team review and account planning session.
+END:VEVENT
+BEGIN:VEVENT
+UID:marc-20261013-client-call@northstar-demo.local
+DTSTAMP:20260927T120000Z
+DTSTART;TZID=Europe/London:20261013T110000
+DTEND;TZID=Europe/London:20261013T120000
+SUMMARY:Client Call
+DESCRIPTION:Client discussion on open commercial topics and next steps.
+END:VEVENT
+BEGIN:VEVENT
+UID:marc-20261014-q4-europe-operations-summit@northstar-demo.local
+DTSTAMP:20260927T120000Z
+DTSTART;TZID=Europe/Berlin:20261014T090000
+DTEND;TZID=Europe/Berlin:20261014T170000
+SUMMARY:Q4 Europe Operations Summit
+DESCRIPTION:Northstar Labs European Operations Summit.\nMarc is attending as Sales Manager.
+LOCATION:Alexanderplatz\, Berlin\, Germany
+END:VEVENT
+BEGIN:VEVENT
+UID:marc-20261015-emea-sales-sync@northstar-demo.local
+DTSTAMP:20260927T120000Z
+DTSTART;TZID=Europe/London:20261015T090000
+DTEND;TZID=Europe/London:20261015T100000
+SUMMARY:EMEA Sales Sync
+DESCRIPTION:Regional sales alignment on EMEA accounts and follow-up actions.
+END:VEVENT
+END:VCALENDAR

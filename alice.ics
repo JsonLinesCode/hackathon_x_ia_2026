@@ -1,0 +1,78 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Northstar Labs//Travel Demo//EN
+CALSCALE:GREGORIAN
+BEGIN:VEVENT
+UID:alice-20261012-daily-product-sync@northstar-demo.local
+DTSTAMP:20260927T120000Z
+DTSTART;TZID=Europe/Paris:20261012T090000
+DTEND;TZID=Europe/Paris:20261012T093000
+SUMMARY:Daily Product Sync
+DESCRIPTION:Daily alignment on product priorities and delivery risks.
+END:VEVENT
+BEGIN:VEVENT
+UID:alice-20261012-sprint-review@northstar-demo.local
+DTSTAMP:20260927T120000Z
+DTSTART;TZID=Europe/Paris:20261012T110000
+DTEND;TZID=Europe/Paris:20261012T120000
+SUMMARY:Sprint Review
+DESCRIPTION:Review completed sprint work and product feedback.
+END:VEVENT
+BEGIN:VEVENT
+UID:alice-20261012-design-review@northstar-demo.local
+DTSTAMP:20260927T120000Z
+DTSTART;TZID=Europe/Paris:20261012T150000
+DTEND;TZID=Europe/Paris:20261012T160000
+SUMMARY:Design Review
+DESCRIPTION:Review product design updates and next iteration priorities.
+END:VEVENT
+BEGIN:VEVENT
+UID:alice-20261013-product-weekly@northstar-demo.local
+DTSTAMP:20260927T120000Z
+DTSTART;TZID=Europe/Paris:20261013T090000
+DTEND;TZID=Europe/Paris:20261013T100000
+SUMMARY:Product Weekly
+DESCRIPTION:Weekly product planning meeting with roadmap updates.
+END:VEVENT
+BEGIN:VEVENT
+UID:alice-20261013-client-demo-preparation@northstar-demo.local
+DTSTAMP:20260927T120000Z
+DTSTART;TZID=Europe/Paris:20261013T103000
+DTEND;TZID=Europe/Paris:20261013T120000
+SUMMARY:Client Demo Preparation
+DESCRIPTION:Prepare demo flow\, talking points\, and product materials for client review.
+END:VEVENT
+BEGIN:VEVENT
+UID:alice-20261013-customer-review@northstar-demo.local
+DTSTAMP:20260927T120000Z
+DTSTART;TZID=Europe/Paris:20261013T130000
+DTEND;TZID=Europe/Paris:20261013T143000
+SUMMARY:Customer Review
+DESCRIPTION:Review customer feedback and prioritize product follow-up actions.
+END:VEVENT
+BEGIN:VEVENT
+UID:alice-20261014-q4-europe-operations-summit@northstar-demo.local
+DTSTAMP:20260927T120000Z
+DTSTART;TZID=Europe/Berlin:20261014T090000
+DTEND;TZID=Europe/Berlin:20261014T170000
+SUMMARY:Q4 Europe Operations Summit
+DESCRIPTION:Northstar Labs European Operations Summit.\nAlice is attending as Product Manager.
+LOCATION:Alexanderplatz\, Berlin\, Germany
+END:VEVENT
+BEGIN:VEVENT
+UID:alice-20261015-product-catch-up@northstar-demo.local
+DTSTAMP:20260927T120000Z
+DTSTART;TZID=Europe/Paris:20261015T100000
+DTEND;TZID=Europe/Paris:20261015T110000
+SUMMARY:Product Catch-up
+DESCRIPTION:Post-summit product catch-up and action review.
+END:VEVENT
+BEGIN:VEVENT
+UID:alice-20261015-weekly-wrap-up@northstar-demo.local
+DTSTAMP:20260927T120000Z
+DTSTART;TZID=Europe/Paris:20261015T173000
+DTEND;TZID=Europe/Paris:20261015T180000
+SUMMARY:Weekly Wrap-up
+DESCRIPTION:End-of-week product recap and open-topic review.
+END:VEVENT
+END:VCALENDAR
