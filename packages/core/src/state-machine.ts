@@ -3,7 +3,8 @@ import { TripStatusSchema, type TripStatus } from "@repo/types";
 // This is a graph, not an ordinal list: missing information, exceptions,
 // disruption recovery, and Phase 2's availability shortcut are explicit.
 const transitions: Record<TripStatus, readonly TripStatus[]> = {
-  draft: ["understanding", "cancelled"],
+  draft: ["awaiting_request_confirmation", "understanding", "cancelled"],
+  awaiting_request_confirmation: ["checking_availability", "cancelled"],
   understanding: ["disrupted", "needs_info", "checking_availability", "searching", "cancelled"],
   needs_info: ["disrupted", "understanding", "cancelled"],
   checking_availability: ["disrupted", "needs_info", "searching", "cancelled"],

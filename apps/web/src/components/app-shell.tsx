@@ -115,6 +115,14 @@ const mobileTitles: Record<Screen, [string, string]> = {
 
 export function AppShell({ screen = "overview", tripId }: { screen?: Screen; tripId?: string }) {
   const reducedMotion = useReducedMotion();
+  const [createProfile, setCreateProfile] = useState<{ full_name: string; email: string } | null>(null);
+  useEffect(() => {
+    if (screen !== "create") return;
+    let active = true;
+    void api<{ full_name: string; email: string }>("/api/profile").then((value) => { if (active) setCreateProfile(value); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [screen]);
+  const accountInitials = screen === "create" ? (createProfile?.full_name || createProfile?.email || "").split(/\s+/).map((p) => p[0]).slice(0, 2).join("").toUpperCase() : "TM";
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -135,7 +143,7 @@ export function AppShell({ screen = "overview", tripId }: { screen?: Screen; tri
     let active = true;
     void Promise.all([api<Trip[]>("/api/trips"), api<TravelerRecord[]>("/api/travelers")]).then(([trips, people]) => {
       if (active) setSearchItems([
-        ...trips.map((trip) => ({ title: trip.title, detail: trip.destination || "Trip", href: "/trips/" + trip.id })),
+        ...trips.map((trip) => ({ title: trip.title, detail: trip.destination || "Trip", href: trip.status === "awaiting_request_confirmation" ? "/trips/new?draft=" + trip.id : "/trips/" + trip.id })),
         ...people.map((person) => ({ title: person.full_name, detail: person.home_city, href: "/travelers" })),
         { title: "Company travel policy", detail: "Workspace policy", href: "/policies" },
       ]);
@@ -172,7 +180,7 @@ export function AppShell({ screen = "overview", tripId }: { screen?: Screen; tri
           <span>{PRODUCT_NAME}</span>
         </Link>
         <Link href="/profile" className="workspace-switch">
-          <Avatar size="sm">TM</Avatar>
+          <Avatar size="sm">{accountInitials}</Avatar>
           <span>
             <strong>Your workspace</strong>
             <small>Team travel</small>
@@ -199,8 +207,9 @@ export function AppShell({ screen = "overview", tripId }: { screen?: Screen; tri
       </aside>
       <div className="app-workspace">
         <header className="desktop-header">
-          <span>{breadcrumbs[screen]}</span>
+          <span>{screen === "create" && tripId ? "Trips / Create trip · Draft" : breadcrumbs[screen]}</span>
           <div className="topbar-actions">
+            {screen === "create" && tripId && <Link className="text-link" href="/trips/new">New request</Link>}
             <div
               className="search-wrapper"
               onBlur={(event) => {
@@ -248,18 +257,18 @@ export function AppShell({ screen = "overview", tripId }: { screen?: Screen; tri
               </Link>
             </Button>
             <Link href="/profile" aria-label="Your profile">
-              <Avatar size="sm">TM</Avatar>
+              <Avatar size="sm">{accountInitials}</Avatar>
             </Link>
           </div>
         </header>
         <header className="mobile-header">
           <div>
-            <h1>{mobileTitle}</h1>
-            <p>{mobileSubtitle}</p>
+            <h1>{screen === "create" && tripId ? "Create trip · Draft" : mobileTitle}</h1>
+            <p>{screen === "create" && tripId ? <Link href="/trips/new">New request</Link> : mobileSubtitle}</p>
           </div>
           <Link href="/profile" aria-label="Your profile">
             <Avatar>
-              {screen === "assistant" ? <UserRound size={20} /> : "TM"}
+              {screen === "assistant" ? <UserRound size={20} /> : accountInitials}
             </Avatar>
           </Link>
         </header>
@@ -278,7 +287,7 @@ export function AppShell({ screen = "overview", tripId }: { screen?: Screen; tri
           {screen !== "design-system" && !quickTravelerScreen && <SyncControl />}
           {screen === "overview" && <Dashboard />}
           {screen === "trips" && <Dashboard tripsOnly />}
-          {screen === "create" && <CreateTrip />}
+          {screen === "create" && <CreateTrip key={tripId ?? "new"} tripId={tripId} />}
           {screen === "planning" && tripId && <Planning tripId={tripId} />}
           {screen === "trip" && tripId && <TripPlan tripId={tripId} />}
           {screen === "report" && tripId && <PostTrip tripId={tripId} />}

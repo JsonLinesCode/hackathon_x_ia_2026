@@ -1,3 +1,4 @@
+import { counterProposalPrompt } from "../prompts";
 import "server-only";
 import { resolveRequest } from "@repo/core";
 import { extractRequest } from "../../integrations/openai";
@@ -10,9 +11,7 @@ export async function replanTraveler(store: TripStore, travelerId: string, const
   if (!person || !selected) throw new HttpError(404, "Traveler plan not found.");
   const reply = constraint ?? person.response_text;
   if (!reply) throw new HttpError(400, "Supply the traveler's alternative dates or constraints.");
-  const prompt = "Update this trip ONLY for " + person.traveler.full_name + ". Preserve the meeting and other stated requirements unless explicitly changed. " +
-    "Original request: " + store.state.trip.request_text + "\nTraveler counter-proposal: " + reply +
-    "\nThis run is only for the selected traveler. Ignore other people mentioned in the original request.";
+  const prompt = counterProposalPrompt(person.traveler.full_name, store.state.trip.request_text, reply);
   const extraction = await extractRequest(prompt, [person.traveler], [travelerId], new Date(), store.audit);
   const resolved = resolveRequest(extraction, [person.traveler], [travelerId], new Date());
   if (resolved.request.missingFields.length || !resolved.journey ||

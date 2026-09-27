@@ -1,3 +1,4 @@
+import { TripCardSchema } from "./trip-draft";
 import { z } from "zod";
 
 export const IdSchema = z.string().uuid();
@@ -39,7 +40,7 @@ export const ProfileSchema = z.object({
 });
 
 export const TripStatusSchema = z.enum([
-  "draft", "understanding", "needs_info", "checking_availability", "searching", "options_ready",
+  "draft", "awaiting_request_confirmation", "understanding", "needs_info", "checking_availability", "searching", "options_ready",
   "awaiting_exception", "awaiting_travelers", "ready_to_book", "booking", "booked", "disrupted",
   "cancelled", "completed", "reported",
 ]);
@@ -59,6 +60,7 @@ export const TravelRequestSchema = z.object({
 });
 export type TravelRequest = z.infer<typeof TravelRequestSchema>;
 export const TripSchema = z.object({
+  card: TripCardSchema.nullable().optional(),
   id: IdSchema, owner_id: IdSchema, title: z.string(), request_text: z.string(),
   extracted: TravelRequestSchema.nullable(), destination: z.string().nullable(), meeting: MeetingSchema.nullable(),
   status: TripStatusSchema, budget_per_traveler: MoneySchema.nullable(),

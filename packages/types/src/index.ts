@@ -18,3 +18,5 @@ export * from "./coordination";
 export * from "./disruptions";
 
 export * from "./post-trip";
+
+export * from "./trip-draft";

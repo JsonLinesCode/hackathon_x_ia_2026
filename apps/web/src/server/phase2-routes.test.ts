@@ -3,6 +3,10 @@ vi.mock("server-only", () => ({}));
 const auth = vi.hoisted(() => ({ requireUser: vi.fn() }));
 vi.mock("./auth", async (original) => ({ ...await original<typeof import("./auth")>(), requireUser: auth.requireUser }));
 import { UnauthorizedError } from "./auth";
+import { POST as draftMessage, GET as draftMessages } from "@/app/api/trips/[id]/messages/route";
+import { PATCH as editCard } from "@/app/api/trips/[id]/card/route";
+import { POST as validateDraft } from "@/app/api/trips/[id]/validate/route";
+import { DELETE as deleteDraft } from "@/app/api/trips/[id]/route";
 import { GET as list, POST as create } from "@/app/api/trips/route";
 import { GET as detail, PATCH as clarify } from "@/app/api/trips/[id]/route";
 import { POST as run } from "@/app/api/trips/[id]/run/route";
@@ -27,7 +31,7 @@ beforeEach(() => vi.clearAllMocks());
 describe("workflow authentication boundaries", () => {
   it("returns 401 JSON on all unauthenticated workflow routes before using provider keys or a service client", async () => {
     auth.requireUser.mockRejectedValue(new UnauthorizedError());
-    const responses = await Promise.all([list(), create(request()), detail(request(), ctx), clarify(request(), ctx), run(request(), ctx),
+    const responses = await Promise.all([draftMessage(request(), ctx), draftMessages(request(), ctx), editCard(request(), ctx), validateDraft(request(), ctx), deleteDraft(request(), ctx), list(), create(request()), detail(request(), ctx), clarify(request(), ctx), run(request(), ctx),
       select(request(), ctx), exception(request(), ctx), confirm(request(), ctx), decide(request(), ctx), sync(request()), remind(request(), ctx), review(request(), ctx), events(request()), recovery(request(), ctx), disruptions(), upload(request(), ctx), expenses(request(), ctx), report(request(), ctx), csv(request(), ctx), receipt(request(), ctx)]);
     for (const response of responses) {
       expect(response.status).toBe(401);

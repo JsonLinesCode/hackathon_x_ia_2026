@@ -1,14 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
-import { ArrowDown, ArrowRight, Building2, CalendarDays, Check, ChevronDown, CircleDollarSign, Clock3, GitCompareArrows, MapPin, Plane, ShieldCheck, Sparkles, UserPlus, WalletCards } from "lucide-react";
+import { useState, type FormEvent } from "react";
+import { ArrowDown, ArrowRight, Building2, CalendarDays, Check, ChevronDown, CircleDollarSign, GitCompareArrows, Plane, ShieldCheck, Sparkles, WalletCards, Clock3 } from "lucide-react";
 import { Avatar, Badge } from "@repo/ui";
 import { Button } from "@repo/ui/button";
-import { FlightDetailsSchema, HotelDetailsSchema, type Policy, type TravelerRecord, type TripDetail, type TripOption, type PlanTraveler } from "@repo/types";
+import { FlightDetailsSchema, HotelDetailsSchema, type Policy, type TripDetail, type TripOption, type PlanTraveler } from "@repo/types";
 import { travelerCost } from "@repo/core";
-import { api, automatic, dateTime, euro, statusLabel, useTrip } from "@/lib/trip-client";
+import { automatic, dateTime, euro, statusLabel, useTrip } from "@/lib/trip-client";
 import { RecoveryPanel } from "./disruption-workspace";
 import { ResponseReview } from "./coordination-controls";
 import { Heading, IconBox, Modal } from "./travel-primitives";
@@ -22,60 +21,7 @@ export function PolicyDetails({ policy }: { policy: Policy | null }) {
       <p>Exceptions require external approval, recorded by the manager before any quote.</p></div>}
   </details>;
 }
-export function CreateTrip() {
-  const router = useRouter();
-  const [request, setRequest] = useState("");
-  const [travelers, setTravelers] = useState<TravelerRecord[]>([]);
-  const [selected, setSelected] = useState<string[]>([]);
-  const [policy, setPolicy] = useState<Policy | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const key = useRef<string | null>(null);
-  useEffect(() => {
-    let active = true;
-    void Promise.all([api<TravelerRecord[]>("/api/travelers"), api<Policy>("/api/policies")])
-      .then(([people, rules]) => { if (active) { setTravelers(people); setPolicy(rules); } })
-      .catch((err: Error) => { if (active) setError(err.message); }).finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
-  }, []);
-  async function submit(event: FormEvent) {
-    event.preventDefault(); setBusy(true); setError("");
-    key.current ??= crypto.randomUUID();
-    try {
-      const trip = await api<{ id: string }>("/api/trips", { request_text: request, traveler_ids: selected, idempotency_key: key.current });
-      router.push("/trips/" + trip.id + "/planning");
-    } catch (err) { setError(err instanceof Error ? err.message : "Could not create the trip."); setBusy(false); }
-  }
-  return <form className="create-trip stack" onSubmit={submit}>
-    <Heading eyebrow="New multi-person trip" title="What should we organize?" subtitle="Describe the outcome. The coordinator will structure the details and resolve the logistics." />
-    <section className="request-box">
-      <div className="section-heading"><div className="inline-detail"><IconBox icon={Sparkles} tone="primary" /><strong>Ask Travel Manager</strong></div><Badge>AI-assisted</Badge></div>
-      <textarea aria-label="Trip request" required minLength={10} maxLength={12000} value={request} onChange={(e) => { setRequest(e.target.value); key.current = null; }}
-        placeholder="Describe the travelers, destination, meeting date and times, departure and return dates, hotel nights and budget. French or English." />
-      <div className="request-footer"><span>Include the meeting venue and time zone. Missing details will be requested.</span></div>
-    </section>
-    <div className="trip-fields">
-      {[{ icon: MapPin, title: "Destination", detail: "From your request" }, { icon: CalendarDays, title: "Dates", detail: "Exact dates or relative dates" },
-        { icon: Clock3, title: "Schedules", detail: "Calendar + confirmation" }, { icon: WalletCards, title: "Budget", detail: "Per traveler or whole team" }].map((item) =>
-        <div key={item.title}><IconBox icon={item.icon} /><span><small>{item.title}</small><span>{item.detail}</span></span></div>)}
-    </div>
-    <section className="surface travelers-section">
-      <div className="section-heading"><div><h2>Travelers</h2><p className="muted small">{selected.length} selected · You can also name travelers in your request</p></div>
-        <Button asChild variant="outline"><Link href="/travelers"><UserPlus size={16} />Manage travelers</Link></Button></div>
-      {loading ? <p role="status">Loading travelers and policy…</p> : !travelers.length ? <p className="empty-state">Add your team in Travelers, or include their full name, email, home city and airport in the request.</p> :
-        <div className="traveler-rows">{travelers.map((person) => <label key={person.id} className="traveler-row selectable-traveler">
-          <input type="checkbox" checked={selected.includes(person.id)} onChange={(e) => { key.current = null; setSelected((ids) => e.target.checked ? [...ids, person.id] : ids.filter((id) => id !== person.id)); }} />
-          <div className="person"><Avatar>{person.full_name.split(" ").map((s) => s[0]).join("").slice(0, 2)}</Avatar><div><strong>{person.full_name}</strong><small>{person.email}</small></div></div>
-          <span className="inline-detail"><MapPin size={14} />{person.home_city} · {person.home_airport}</span>
-        </label>)}</div>}
-      <PolicyDetails policy={policy} />
-    </section>
-    {error && <p role="alert" className="inline-alert tone-danger">{error}</p>}
-    <div className="form-footer"><p className="muted">One adult and one room per traveler. Quotes require your approval.</p>
-      <Button type="submit" disabled={busy || loading}><Sparkles size={16} />{busy ? "Creating trip…" : "Plan trip"}</Button></div>
-  </form>;
-}
+export { CreateTrip } from "./create-trip";
 
 export function Timeline({ data }: { data: TripDetail }) {
   return <section className="surface"><h2>Activity timeline</h2><ol className="trip-activity" aria-label="Trip activity">
@@ -111,25 +57,11 @@ function WorkflowIssue({ data, busy, mutate }: { data: TripDetail; busy: boolean
 export function Planning({ tripId }: { tripId: string }) {
   const { data, error, busy, mutate } = useTrip(tripId);
   if (!data) return <TripLoading error={error} />;
-  const searched = data.timeline.filter((e) => e.title === "Travel search saved").length;
   const ready = data.options.length > 0;
-  const nodes = [
-    { icon: CalendarDays, name: "Calendar", detail: data.travelers.filter((t) => t.availability).length + " calendars checked", tone: "neutral" as const },
-    { icon: Plane, name: "Travel", detail: searched + " traveler searches saved", tone: searched ? "success" as const : "primary" as const },
-    { icon: ShieldCheck, name: "Policy", detail: ready ? "Options evaluated" : "Waiting for offers", tone: ready ? "success" as const : "neutral" as const },
-    { icon: GitCompareArrows, name: "Optimizer", detail: ready ? data.options.length + " ranked options" : "Cost × time × compliance", tone: ready ? "success" as const : "neutral" as const },
-  ];
   return <div className="stack planning-page">
     <Heading title={"Coordinating " + data.trip.title} subtitle="Building one plan across people, travel and company policy."><Badge>{statusLabel(data.trip.status)}</Badge></Heading>
     <ErrorNotice message={error} /><WorkflowIssue data={data} busy={busy} mutate={mutate} />
-    <section className="workflow-surface">
-      <div className="coordinator-card"><span className="coordinator-icon"><Sparkles size={25} /></span><div><small>Travel AI coordinator</small>
-        <p>{automatic(data) ? "Planning from live travel inventory" : "Waiting for your next decision"}</p></div><span className="live-label"><span className="status-dot" />{data.running ? "Running" : "Saved"}</span></div>
-      <div className="workflow-arrow"><ArrowDown size={30} strokeWidth={1.4} /></div>
-      <div className="workflow-nodes">{nodes.map((item) => <div key={item.name} className={"workflow-node " + (item.name === "Travel" && data.trip.status === "searching" ? "selected" : "")}>
-        <IconBox icon={item.icon} tone={item.tone} /><span><strong>{item.name}</strong><small>{item.detail}</small></span></div>)}</div>
-      <div className="workflow-caption"><span>{data.trip.extracted?.destination || "Understanding your request"}</span><span>{data.travelers.length} travelers</span></div>
-    </section>
+    <PlanningProgress data={data} />
     {data.trip.status === "needs_info" && <Clarification key={data.trip.updated_at} data={data} busy={busy} mutate={mutate} />}
     <div className="planning-columns"><Timeline data={data} /><aside className="dark-panel">
       <h2>Coordination snapshot</h2><p className="muted">Live constraints in this plan</p><dl className="summary-list">
@@ -263,4 +195,25 @@ export function TripPlan({ tripId }: { tripId: string }) {
     {confirming && <ConfirmTraveler person={confirming} hasFlight={!!selected?.per_traveler.find((i) => i.traveler_id === confirming.traveler_id)?.flight}
       busy={busy} error={error} onSave={(body) => mutate(path + "/confirm", body)} onClose={() => setConfirming(null)} />}
   </div>;
+}
+
+export function PlanningProgress({ data }: { data: TripDetail }) {
+  const searched = data.timeline.filter((e) => e.title === "Travel search saved").length;
+  const ready = data.options.length > 0;
+  const nodes = [
+    { icon: CalendarDays, name: "Calendar", detail: data.travelers.filter((t) => t.availability).length + " calendars checked", tone: "neutral" as const },
+    { icon: Plane, name: "Travel", detail: searched + " traveler searches saved", tone: searched ? "success" as const : "primary" as const },
+    { icon: ShieldCheck, name: "Policy", detail: ready ? "Options evaluated" : "Waiting for offers", tone: ready ? "success" as const : "neutral" as const },
+    { icon: GitCompareArrows, name: "Optimizer", detail: ready ? data.options.length + " ranked options" : "Cost × time × compliance", tone: ready ? "success" as const : "neutral" as const },
+  ];
+  return (
+    <section className="workflow-surface">
+      <div className="coordinator-card"><span className="coordinator-icon"><Sparkles size={25} /></span><div><small>Travel AI coordinator</small>
+        <p>{automatic(data) ? "Planning from live travel inventory" : "Waiting for your next decision"}</p></div><span className="live-label"><span className="status-dot" />{data.running ? "Running" : "Saved"}</span></div>
+      <div className="workflow-arrow"><ArrowDown size={30} strokeWidth={1.4} /></div>
+      <div className="workflow-nodes">{nodes.map((item) => <div key={item.name} className={"workflow-node " + (item.name === "Travel" && data.trip.status === "searching" ? "selected" : "")}>
+        <IconBox icon={item.icon} tone={item.tone} /><span><strong>{item.name}</strong><small>{item.detail}</small></span></div>)}</div>
+      <div className="workflow-caption"><span>{data.trip.extracted?.destination || "Understanding your request"}</span><span>{data.travelers.length} travelers</span></div>
+    </section>
+  );
 }

@@ -15,6 +15,12 @@ export function Dashboard({ tripsOnly = false }: { tripsOnly?: boolean }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [version, setVersion] = useState(0);
+  const [deleting, setDeleting] = useState<string | null>(null), [deleteBusy, setDeleteBusy] = useState(false);
+  async function removeDraft(id: string) {
+    setDeleteBusy(true); setError("");
+    try { await api("/api/trips/" + id, undefined, "DELETE"); setDeleting(null); setVersion((n) => n + 1); }
+    catch (e) { setError((e as Error).message); } finally { setDeleteBusy(false); }
+  }
   useEffect(() => {
     let active = true;
     setLoading(true); setError("");
@@ -41,10 +47,11 @@ export function Dashboard({ tripsOnly = false }: { tripsOnly?: boolean }) {
         <label className="filter-input"><Search size={16} /><input placeholder="Search trips" aria-label="Filter trips" value={filter} onChange={(e) => setFilter(e.target.value)} /></label>
         {!visible.length ? <div className="empty-state"><p>{filter ? "No matching trips." : "No trips yet. Start with a request for your team."}</p></div> :
           <div className="table-scroll"><table className="trip-table"><thead><tr><th>Trip &amp; team</th><th>Meeting</th><th>Budget / traveler</th><th>Status</th></tr></thead>
-            <tbody>{visible.map((trip) => <tr key={trip.id}><td><Link className="trip-name" href={"/trips/" + trip.id + (["understanding", "searching", "needs_info"].includes(trip.status) ? "/planning" : "")}>{trip.title}</Link>
+            <tbody>{visible.map((trip) => <tr key={trip.id}><td><Link className="trip-name" href={trip.status === "awaiting_request_confirmation" ? "/trips/new?draft=" + trip.id : "/trips/" + trip.id + (["understanding", "searching", "needs_info"].includes(trip.status) ? "/planning" : "")}>{trip.title}</Link>
               <div className="team-preview">{trip.traveler_count} travelers · {trip.destination || "Destination to clarify"}</div></td>
               <td>{trip.meeting ? dateTime(trip.meeting.start, trip.meeting.timezone) : "To clarify"}</td><td>{trip.budget_per_traveler === null ? "Company policy" : euro(trip.budget_per_traveler)}</td>
-              <td><Badge tone={trip.pending_decisions || trip.status === "awaiting_exception" ? "warning" : trip.status === "booked" ? "success" : "neutral"}>{statusLabel(trip.status)}</Badge></td>
+              <td><Badge tone={trip.pending_decisions || trip.status === "awaiting_exception" ? "warning" : trip.status === "booked" ? "success" : "neutral"}>{statusLabel(trip.status)}</Badge>
+                {trip.status === "awaiting_request_confirmation" && <div className="draft-delete">{deleting === trip.id ? <><span>Delete this draft?</span><Button size="sm" variant="destructive" disabled={deleteBusy} onClick={() => void removeDraft(trip.id)}>Delete</Button><Button size="sm" variant="ghost" disabled={deleteBusy} onClick={() => setDeleting(null)}>Cancel</Button></> : <Button size="sm" variant="ghost" onClick={() => setDeleting(trip.id)}>Delete draft</Button>}</div>}</td>
             </tr>)}</tbody></table></div>}
       </section><section className="surface attention-panel"><div className="section-heading"><h2>Attention required</h2><span className="text-link">{attention.length} trips</span></div>
         <div className="attention-list">{attention.map((trip) => <Link href={"/trips/" + trip.id + (["completed", "cancelled", "reported"].includes(trip.status) ? "/report" : "")} key={trip.id} className="attention-item"><IconBox icon={TriangleAlert} tone="warning" />

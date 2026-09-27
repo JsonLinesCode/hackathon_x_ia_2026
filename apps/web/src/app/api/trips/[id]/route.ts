@@ -2,7 +2,7 @@ import { z } from "zod";
 import { IdSchema } from "@repo/types";
 import { requireUser } from "@/server/auth";
 import { checkOrigin, handleApi, HttpError, json, readJson } from "@/server/http";
-import { loadTrip, publicTrip, withTrip } from "@/server/agent/store";
+import { loadTrip, planningDatabase, publicTrip, withTrip } from "@/server/agent/store";
 
 type Context = { params: Promise<{ id: string }> };
 export async function GET(_request: Request, context: Context) {
@@ -24,5 +24,18 @@ export async function PATCH(request: Request, context: Context) {
         events: [{ actor: "manager", title: "Request clarified", detail: input.request_text }] });
     });
     return json(publicTrip(await loadTrip(user.id, id)));
+  });
+}
+
+export async function DELETE(request: Request, context: Context) {
+  return handleApi(async () => {
+    const { user } = await requireUser(); checkOrigin(request);
+    const id = IdSchema.parse((await context.params).id);
+    await withTrip(user.id, id, async (store) => {
+      if (store.state.trip.status !== "awaiting_request_confirmation") throw new HttpError(409, "Only unvalidated drafts can be deleted.");
+      const result = await store.db.from("trips").delete().eq("owner_id", user.id).eq("id", id).eq("status", "awaiting_request_confirmation");
+      planningDatabase(result.error);
+    });
+    return json({ deleted: true });
   });
 }

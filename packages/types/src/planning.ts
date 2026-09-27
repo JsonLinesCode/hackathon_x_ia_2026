@@ -87,7 +87,8 @@ export const TripDetailSchema = z.object({
 });
 export type TripDetail = z.infer<typeof TripDetailSchema>;
 export const CreateTripSchema = z.object({
-  request_text: z.string().trim().min(10).max(12000),
+  request_text: z.string().trim().min(1).max(12000),
+  traveler_overrides: z.record(z.boolean()).optional(),
   traveler_ids: IdSchema.array().max(12).default([]),
   idempotency_key: IdSchema,
 }).strict();

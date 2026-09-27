@@ -8,7 +8,8 @@
     "build": "turbo build",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
-    "test": "turbo test"
+    "test": "turbo test",
+    "eval:agent": "pnpm --filter @repo/web eval:agent"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",

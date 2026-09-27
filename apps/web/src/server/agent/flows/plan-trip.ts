@@ -2,7 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { ActionSchema, BookingDetailsSchema, BookingSchema, FlightDetailsSchema, HotelDetailsSchema, TravelerRecordSchema, type Action, type TripOption, type SearchResult } from "@repo/types";
-import { assertActionExecutable, assertBookingReady, calendarConflicts, buildBundles, classifyAction, effectivePolicy, evaluatePolicy, includeRetainedHotels, resolveRequest, travelerCost } from "@repo/core";
+import { assertActionExecutable, assertBookingReady, calendarConflicts, buildBundles, classifyAction, effectivePolicy, evaluatePolicy, filterDraftReturnFlights, includeRetainedHotels, resolveRequest, travelerCost } from "@repo/core";
 import { extractRequest, explainOptions } from "../../integrations/openai";
 import { withJinko } from "../../integrations/jinko";
 import { euroAmount } from "../../integrations/jinko-contract";
@@ -57,6 +57,9 @@ export async function searchNext(store: TripStore) {
       return { flights: f?.flights ?? [], hotels: h?.hotels ?? [], warnings: [...(f?.warnings ?? []), ...(h?.warnings ?? [])],
         raw: { flights: f?.raw ?? null, hotels: h?.raw ?? null }, searched_at: new Date().toISOString() };
     });
+    if (trip.card?.validated_at && workflow.attempt === 0 && !workflow.coordination.replan_traveler && !workflow.disruption) {
+      result.flights = filterDraftReturnFlights(result.flights, trip.card, trip.meeting.timezone);
+    }
     const available = result.flights.filter((flight) => calendarConflicts({ traveler_id: person.traveler_id, flight, hotel: null }, person).length === 0);
     if (available.length !== result.flights.length) result.warnings.push("Flights conflicting with known calendar events were excluded.");
     result.flights = available;

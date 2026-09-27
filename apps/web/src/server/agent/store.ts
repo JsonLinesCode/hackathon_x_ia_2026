@@ -16,7 +16,7 @@ export type Changes = {
 };
 export function planningDatabase(error: { code?: string; message?: string } | null) {
   if (error && ["42P01", "42703", "PGRST202", "PGRST204", "PGRST205"].includes(error.code ?? "")) {
-    throw new HttpError(503, "Database setup is incomplete. Apply numbered migrations through 0005_post_trip.sql in order.");
+    throw new HttpError(503, "Database setup is incomplete. Apply numbered migrations through 0006_trip_drafts.sql in order.");
   }
   if (error?.code === "P0001") throw new HttpError(409, "This trip changed or another step is running. Refresh before trying again.");
   checkDatabase(error);

@@ -79,4 +79,4 @@ export const euro = (value: number) => new Intl.NumberFormat("en-GB", { style: "
 export const dateTime = (value: string, timeZone = "Europe/Paris") => new Intl.DateTimeFormat("en-GB", {
   dateStyle: "medium", timeStyle: "short", timeZone,
 }).format(new Date(value));
-export const statusLabel = (status: string) => status === "booked" ? "Payment links ready" : status.replaceAll("_", " ");
+export const statusLabel = (status: string) => status === "awaiting_request_confirmation" || status === "draft" ? "Draft" : status === "booked" ? "Payment links ready" : status.replaceAll("_", " ");

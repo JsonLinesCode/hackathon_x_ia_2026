@@ -1,10 +1,13 @@
+import { sendDraftMessage } from "@/server/agent/trip-drafts";
 import { randomUUID } from "node:crypto";
-import { CreateTripSchema, TripSchema, PlanningStateSchema } from "@repo/types";
-import { transitionTrip } from "@repo/core";
+import { CreateTripSchema, TripSchema, PlanningStateSchema, PolicyRulesSchema } from "@repo/types";
+import { blankTripCard, transitionTrip } from "@repo/core";
 import { requireUser } from "@/server/auth";
 import { createServiceClient } from "@/server/db";
 import { checkOrigin, handleApi, HttpError, json, readJson } from "@/server/http";
 import { planningDatabase, withTrip } from "@/server/agent/store";
+
+export const maxDuration = 300;
 
 export async function GET() {
   return handleApi(async () => {
@@ -16,7 +19,7 @@ export async function GET() {
     ]);
     [trips, people, actions].forEach((r) => planningDatabase(r.error));
     return json(TripSchema.array().parse(trips.data).map((trip) => ({ ...trip,
-      traveler_count: people.data?.filter((p) => p.trip_id === trip.id).length ?? 0,
+      traveler_count: trip.status === "awaiting_request_confirmation" ? trip.card?.travelers.value.length ?? 0 : people.data?.filter((p) => p.trip_id === trip.id).length ?? 0,
       pending_decisions: actions.data?.filter((a) => a.trip_id === trip.id).length ?? 0,
     })));
   });
@@ -35,10 +38,17 @@ export async function POST(request: Request) {
     const service = createServiceClient();
     const existing = await service.from("trips").select("*").eq("owner_id", user.id).eq("creation_key", input.idempotency_key).maybeSingle();
     planningDatabase(existing.error);
-    if (existing.data) return json(TripSchema.parse(existing.data));
+    if (existing.data) {
+      const trip = TripSchema.parse(existing.data);
+      if (trip.status === "awaiting_request_confirmation") await withTrip(user.id, trip.id, (store) => sendDraftMessage(store, input.request_text, input.idempotency_key, 0, true, input.traveler_overrides));
+      return json(trip);
+    }
+    const policy = await db.from("policies").select("rules").eq("owner_id", user.id).single();
+    planningDatabase(policy.error);
     const created = await service.from("trips").insert({
       id: randomUUID(), owner_id: user.id, title: "New trip", request_text: input.request_text,
-      status: transitionTrip("draft", "understanding"), creation_key: input.idempotency_key,
+      card: blankTripCard(PolicyRulesSchema.parse(policy.data?.rules), ids),
+      status: transitionTrip("draft", "awaiting_request_confirmation"), creation_key: input.idempotency_key,
       workflow: PlanningStateSchema.parse({ traveler_ids: ids }),
     }).select().single();
     if (created.error?.code === "23505") {
@@ -48,7 +58,7 @@ export async function POST(request: Request) {
     }
     planningDatabase(created.error);
     const trip = TripSchema.parse(created.data);
-    await withTrip(user.id, trip.id, (store) => store.save({ events: [{ actor: "manager", title: "Trip requested", detail: input.request_text }] }));
+    await withTrip(user.id, trip.id, (store) => sendDraftMessage(store, input.request_text, input.idempotency_key, 0, true, input.traveler_overrides));
     return json(trip, 201);
   });
 }

@@ -355,7 +355,7 @@ the application has no mock mode.
 | /policies | Persistent policy editing |
 | /profile | Manager account, Google status, reconnect, sign out |
 | /, /trips | Real trip list and attention counts |
-| /trips/new | Persisted free-text request |
+| /trips/new | Chat-first request, saved draft card and explicit validation |
 | /trips/[id]/planning | Resumable planning and clarification |
 | /trips/[id] | Ranked options, exceptions, emailed confirmations, decisions, recovery and timeline |
 | /trips/[id]/itinerary | Stored quotes and tentative .ics export |
@@ -591,3 +591,56 @@ invalidation and frozen submissions. It does not send real emails, mutate Google
 calendars, cancel provider bookings or apply migrations to your live project.
 See [OpenAI PDF inputs](https://developers.openai.com/api/docs/guides/pdf-files)
 for model requirements and document-input behavior.
+
+## Part A — chat-first trip requests
+
+Apply `supabase/migrations/0006_trip_drafts.sql` **after migrations 0001–0005** in
+Supabase's SQL editor before using the new Create trip page. It adds the
+`awaiting_request_confirmation` status, structured `trips.card`, owner-isolated
+`trip_messages`, and a service-only atomic draft checkpoint. Existing owner RLS
+policies and credentials are unchanged. No new environment variables are required;
+keep the existing Supabase configuration plus `OPENAI_API_KEY` and `OPENAI_MODEL`.
+This change does not implement Part B or policy document ingestion.
+
+- `/trips/new` starts with a message and the manager's directory. Name detection
+  happens locally; explicit selection/deselection wins over name detection.
+- The first message creates a saved **Draft**. Resume at `/trips/new?draft=<id>`
+  from Trips; only unvalidated drafts can be deleted.
+- Chat and inline edits update a card with value sources. A low-confidence intent
+  asks one question with quick replies. Notes require an explicit note request.
+- Required fields: travelers, destination, meeting date and meeting start. Defaults
+  and journey recomputation live in `packages/core/src/trip-draft.ts`. Inline
+  changes are recorded with their agent confirmation in one transaction; stale
+  revisions and retried message IDs cannot silently overwrite or duplicate edits.
+- Validation records a manager timeline event and hands the structured request to
+  the existing availability/search workflow. The explicit meeting bypasses Calendar
+  meeting discovery. Calendar access is used for traveler availability afterward.
+  Existing Jinko calls, quote gates, confirmations, recovery and expenses continue
+  through the same workflow. New draft offers additionally respect the selected
+  return period, using a deterministic filter on the returned flight times.
+- Parts of day use local windows: morning 06:00–11:59, midday 11:00–13:59,
+  afternoon 12:00–17:59, evening 18:00–23:59. Destinations and their time zones
+  come from the explicit city catalog in `packages/core/src/trip-cities.ts`; add a
+  city there to support another destination. The model does not guess time zones.
+- Company hotel/class rules remain sourced from the existing workspace policy.
+  This phase does not invent document citations. The requested cabin and budget
+  do not override the existing company-policy exception gates.
+- Explicit direct-flight, refundable-fare and checked-bag constraints map to the
+  existing search filters. Other free-text constraints remain visible and require
+  clarification/removal before validation, rather than being silently ignored.
+
+All LLM instructions, including unchanged legacy instructions, are centralized in
+`apps/web/src/server/agent/prompts.ts`. Interpretation uses the existing
+[OpenAI structured-output adapter](https://developers.openai.com/api/docs/guides/structured-outputs).
+
+Run the usual `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` checks.
+`pnpm eval:agent` runs the French cases in `apps/web/src/server/agent/evals/` against
+**the real configured model** and uses API credits. It loads `apps/web/.env.local`
+when present and is deliberately excluded from `pnpm test`.
+
+Manual acceptance: send an incomplete French request; fill the missing fields;
+change the start to 14:00; override the return; change the meeting date and verify
+both journey overrides reset; try “je veux changer le retour”; explicitly add and
+remove a note; reload the draft; validate and watch Calendar/Travel/Policy/Optimizer
+progress; open the options. Check desktop and mobile. No search should run before
+validation, and the conversation must stay visible after it.
