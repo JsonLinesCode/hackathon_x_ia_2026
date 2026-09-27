@@ -47,7 +47,7 @@ export type TripStatus = z.infer<typeof TripStatusSchema>;
 export const MeetingSchema = z.object({
   title: z.string().min(1), start: TimestampSchema, end: TimestampSchema,
   timezone: TimeZoneSchema.default("Europe/Paris"), location: z.string(),
-  google_event_id: z.string().nullable().default(null),
+  google_event_id: z.string().nullable().default(null), cancelled: z.boolean().optional(),
 }).refine((meeting) => Date.parse(meeting.end) > Date.parse(meeting.start), {
   message: "Meeting end must follow its start", path: ["end"],
 });

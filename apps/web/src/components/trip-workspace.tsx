@@ -9,6 +9,7 @@ import { Button } from "@repo/ui/button";
 import { FlightDetailsSchema, HotelDetailsSchema, type Policy, type TravelerRecord, type TripDetail, type TripOption, type PlanTraveler } from "@repo/types";
 import { travelerCost } from "@repo/core";
 import { api, automatic, dateTime, euro, statusLabel, useTrip } from "@/lib/trip-client";
+import { RecoveryPanel } from "./disruption-workspace";
 import { ResponseReview } from "./coordination-controls";
 import { Heading, IconBox, Modal } from "./travel-primitives";
 
@@ -242,8 +243,9 @@ export function TripPlan({ tripId }: { tripId: string }) {
         {person.confirmation_status === "pending" && <Button variant="outline" disabled={locked} onClick={() => void mutate(path + "/remind", { traveler_id: person.traveler_id })}>Remind</Button>}
       </div>)}</div></section>}
     {data.travelers.filter((t) => ["needs_review", "counter_proposal", "declined"].includes(t.confirmation_status)).map((person) => <ResponseReview key={person.traveler_id + person.response_text} person={person} busy={locked} submit={(decision, message) => void mutate(path + "/review", { traveler_id: person.traveler_id, decision, message })} />)}
-    {data.actions.some((a) => a.gate === "needs_manager") && <section className="surface stack"><h2>Pending decisions</h2><p className="muted">Approval prepares a payment link. It does not pay or confirm a booking.</p>
-      {data.actions.filter((a) => a.gate === "needs_manager").map((action) => <div className="decision-row" key={action.id}><div><strong>{action.summary}</strong><p>{action.rationale}</p>
+    <RecoveryPanel data={data} busy={locked} mutate={mutate} />
+    {data.actions.some((a) => a.gate === "needs_manager" && !a.payload.disruption_id) && <section className="surface stack"><h2>Pending decisions</h2><p className="muted">Approval prepares a payment link. It does not pay or confirm a booking.</p>
+      {data.actions.filter((a) => a.gate === "needs_manager" && !a.payload.disruption_id).map((action) => <div className="decision-row" key={action.id}><div><strong>{action.summary}</strong><p>{action.rationale}</p>
         <p>{action.cost_eur === null ? "Cost unknown" : euro(action.cost_eur)} · Reversible: {action.reversible ? "Yes" : "No"} · {statusLabel(action.status)}</p>
         <small>Offer deadline: {(() => { const p = selected?.per_traveler.find((i) => i.traveler_id === action.payload.traveler_id); const expires = p?.flight ? FlightDetailsSchema.parse(p.flight.details).expires_at : null; return expires ? dateTime(expires, timezone) : "Not provided; availability may change"; })()}</small>
         {typeof action.result?.error === "string" && <p role="alert">{action.result.error}</p>}</div>
@@ -251,7 +253,7 @@ export function TripPlan({ tripId }: { tripId: string }) {
           <Button disabled={locked} onClick={() => void mutate("/api/actions/" + action.id + "/decide", { decision: "approve" })}>Approve quote</Button></div>}
       </div>)}</section>}
     {data.bookings.length > 0 && <section className="surface stack"><h2>Payment links</h2><p>Quotes are unpaid. Check the final price and cancellation terms on Jinko before making any payment yourself.</p>
-      {data.bookings.filter((b, i, all) => all.findIndex((other) => other.payment_link === b.payment_link) === i).map((b) => <div key={b.id} className="decision-row">
+      {data.bookings.filter((b) => ["quoted", "booked"].includes(b.status)).filter((b, i, all) => all.findIndex((other) => other.payment_link === b.payment_link) === i).map((b) => <div key={b.id} className="decision-row">
         <div><strong>{data.travelers.find((t) => t.traveler_id === b.traveler_id)?.traveler.full_name}</strong><p>Provider cart: {b.provider_ref}</p>
           <small>{typeof b.details.quote_expires_at === "string" ? "Quote expires: " + dateTime(b.details.quote_expires_at, timezone) : "Quote expiry not provided. Check with Jinko."}</small></div>
         {b.payment_link && <Button asChild variant="outline"><a href={b.payment_link} target="_blank" rel="noopener noreferrer">Open payment page<ArrowRight size={16} /></a></Button>}

@@ -6,6 +6,7 @@ import { EnvironmentError } from "../env";
 import { withTrip, type TripStore } from "./store";
 import { understand, searchNext, quoteNext } from "./flows/plan-trip";
 
+import { disruptionNext } from "./flows/disruptions";
 import { executeCommunication } from "./notify";
 import { checkAvailability, confirmationNext, postBookingNext } from "./flows/confirmations";
 import { replanTraveler } from "./flows/counter-proposal";
@@ -16,6 +17,7 @@ export async function runStep(store: TripStore, retry = false) {
   try {
     if (await executeCommunication(store)) return;
     switch (store.state.trip.status) {
+      case "disrupted": await disruptionNext(store); break;
       case "understanding": await understand(store); break;
       case "checking_availability": await checkAvailability(store); break;
       case "booked": await postBookingNext(store); break;

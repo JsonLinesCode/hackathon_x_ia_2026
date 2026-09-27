@@ -10,19 +10,14 @@ import {
   CalendarClock,
   CalendarPlus,
   CarFront,
-  Check,
   ChevronRight,
-  CircleCheck,
   FilePenLine,
   Lightbulb,
   ListTodo,
   Mic,
   Plane,
   Route,
-  Send,
   Sparkles,
-  WalletCards,
-  Clock3,
 } from "lucide-react";
 import { Avatar, Badge } from "@repo/ui";
 import { Button } from "@repo/ui/button";
@@ -146,207 +141,7 @@ export function TravelerHome() {
   );
 }
 
-function ResponseSteps({ mobile = false }: { mobile?: boolean }) {
-  return (
-    <div className="response-steps">
-      {[
-        ["Searching alternatives", "46 routes evaluated"],
-        [
-          mobile ? "Checking company policy" : "Checking policy",
-          "Replacement compliant",
-        ],
-        [
-          mobile ? "Updating your itinerary" : "Recalculating itinerary",
-          mobile ? "Complete" : "Arrival and meeting verified",
-        ],
-      ].map(([title, detail]) => (
-        <div key={title}>
-          <CircleCheck size={20} />
-          <span>
-            <strong>{title}</strong>
-            <small>{detail}</small>
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-export function Disruptions() {
-  return (
-    <>
-      <div className="desktop-disruption stack">
-        <div className="cancellation-banner">
-          <Plane size={20} />
-          <div>
-            <h1>Flight AF1234 cancelled</h1>
-            <p>
-              <Avatar size="xs">AM</Avatar>Alice is affected · Paris → Berlin ·
-              Today at 14:10
-            </p>
-          </div>
-          <Badge>Automatically handled</Badge>
-        </div>
-        <div className="resolved-banner">
-          <span className="resolved-check">
-            <Check size={28} />
-          </span>
-          <div>
-            <h2>We found an alternative. No action required.</h2>
-            <p>
-              Alice arrives at 17:20. Her meeting, budget and company policy
-              remain protected.
-            </p>
-          </div>
-          <Button asChild>
-            <Link href="/itinerary">View full itinerary</Link>
-          </Button>
-        </div>
-        <div className="disruption-columns">
-          <section className="surface">
-            <div className="inline-detail">
-              <IconBox icon={Sparkles} tone="primary" />
-              <div>
-                <h2>AI response</h2>
-                <small className="muted">Resolved in 42 seconds</small>
-              </div>
-            </div>
-            <ResponseSteps />
-          </section>
-          <section className="surface">
-            <div className="section-heading">
-              <h2>Itinerary comparison</h2>
-              <small className="muted">Updated 10:24</small>
-            </div>
-            <div className="itinerary-comparison">
-              <div className="flight-option original">
-                <div className="between">
-                  <small className="uppercase">Original</small>
-                  <Badge tone="danger">Cancelled</Badge>
-                </div>
-                <h3>Paris → Berlin</h3>
-                <div className="flight-times">
-                  <div>
-                    <strong>14:10</strong>
-                    <small>CDG · Terminal 2F</small>
-                  </div>
-                  <ArrowRight size={22} />
-                  <div>
-                    <strong>15:55</strong>
-                    <small>BER · Terminal 1</small>
-                  </div>
-                </div>
-                <del>AF1234 · Direct · €420</del>
-              </div>
-              <div className="flight-option replacement">
-                <div className="between">
-                  <small className="uppercase primary-text">Replacement</small>
-                  <Badge tone="success">Confirmed</Badge>
-                </div>
-                <h3>Paris → Frankfurt → Berlin</h3>
-                <div className="flight-times">
-                  <div>
-                    <strong>13:35</strong>
-                    <small>CDG · Terminal 1</small>
-                  </div>
-                  <ArrowRight size={22} />
-                  <div>
-                    <strong>17:20</strong>
-                    <small>BER · Terminal 1</small>
-                  </div>
-                </div>
-                <div className="replacement-badges">
-                  <span className="preference tone-neutral">+€67</span>
-                  <Badge tone="success">Policy compliant</Badge>
-                  <Badge tone="success">Meeting unaffected</Badge>
-                </div>
-              </div>
-            </div>
-          </section>
-        </div>
-        <div className="disruption-metrics">
-          {[
-            {
-              icon: WalletCards,
-              label: "Budget still respected",
-              detail: "€247 remaining",
-            },
-            {
-              icon: Clock3,
-              label: "Arrival deadline respected",
-              detail: "Arrives 40 min early",
-            },
-            {
-              icon: Send,
-              label: "Traveler notified",
-              detail: "Push + email sent",
-            },
-          ].map((item) => (
-            <div className="metric-inline" key={item.label}>
-              <IconBox icon={item.icon} tone="success" />
-              <span>
-                <strong>{item.label}</strong>
-                <small>{item.detail}</small>
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-      <div className="mobile-disruption traveler-stack">
-        <section className="mobile-cancellation">
-          <Plane size={23} />
-          <h2>Your flight was cancelled.</h2>
-          <h3>We&apos;re already handling it.</h3>
-          <p>
-            AF1234 from Paris to Berlin was cancelled by the airline. You
-            don&apos;t need to call anyone.
-          </p>
-        </section>
-        <section className="surface">
-          <h2>Travel Manager response</h2>
-          <ResponseSteps mobile />
-        </section>
-        <section className="mobile-resolved">
-          <div className="between">
-            <div>
-              <small className="uppercase success-text">Resolved</small>
-              <h2>Your new trip is ready.</h2>
-            </div>
-            <Badge tone="success">Confirmed</Badge>
-          </div>
-          <div className="replacement-route">
-            <strong>Paris</strong>
-            <span>
-              <Plane size={18} />
-              via Frankfurt
-            </span>
-            <strong>Berlin</strong>
-          </div>
-          <div className="replacement-facts">
-            <div>
-              <small>New arrival</small>
-              <p>17:20</p>
-            </div>
-            <div>
-              <small>Additional cost</small>
-              <p>Covered by company</p>
-            </div>
-            <div>
-              <small>Meeting</small>
-              <p>Unaffected</p>
-            </div>
-          </div>
-        </section>
-        <Button asChild className="full-width">
-          <Link href="/itinerary">
-            <Route size={18} />
-            View updated itinerary
-          </Link>
-        </Button>
-      </div>
-    </>
-  );
-}
+export { ManagedDisruptions as Disruptions } from "./disruption-workspace";
 
 export function Itinerary({ tripId }: { tripId: string }) {
   const { data, error } = useTrip(tripId);

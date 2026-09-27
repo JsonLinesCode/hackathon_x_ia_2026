@@ -51,7 +51,7 @@ function inWindow(value: string, window: Journey["departure_window"]) {
   const time = value.slice(11, 16);
   return !window || ((!window.earliest || time >= window.earliest) && (!window.latest || time <= window.latest));
 }
-export function parseFlights(raw: unknown, journey: Journey, meeting: Meeting, homeAirport: string) {
+export function parseFlights(raw: unknown, journey: Journey, meeting: Meeting, homeAirport: string, allowLate = false) {
   const data = z.object({ flights: z.array(z.unknown()), unapplied_filters: z.array(z.unknown()).optional() }).parse(toolData(raw));
   const warnings: string[] = [];
   if (data.unapplied_filters?.length) warnings.push("Some search filters were not enforced by Jinko; matching times, cabin, stops and baggage are checked again.");
@@ -63,7 +63,7 @@ export function parseFlights(raw: unknown, journey: Journey, meeting: Meeting, h
     const inbound = f.inbound_segments;
     if (f.outbound_segments[0].departure_airport !== homeAirport ||
       f.outbound_departure.slice(0, 10) !== journey.departure_date ||
-      Date.parse(f.outbound_arrival) > Date.parse(meeting.start) ||
+      (!allowLate && Date.parse(f.outbound_arrival) > Date.parse(meeting.start)) ||
       !inWindow(f.outbound_departure, journey.departure_window) || !inWindow(f.outbound_arrival, journey.arrival_window) ||
       (journey.max_stops !== null && f.outbound_stops > journey.max_stops)) continue;
     if (journey.one_way && f.is_round_trip) continue;

@@ -17,13 +17,24 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       const action = store.state.actions.find((a) => a.id === id)!;
       const target = input.decision === "approve" ? "approved" : "rejected";
       if (action.status === target || (input.decision === "approve" && ["executing", "executed"].includes(action.status))) return;
-      if (action.status !== "proposed" || !["ready_to_book", "booking"].includes(store.state.trip.status)) throw new HttpError(409, "This action no longer accepts a decision.");
-      if (action.kind !== "book" || classifyAction(action) !== "needs_manager") throw new HttpError(409, "Unsupported action for this phase.");
-      const option = store.state.options.find((o) => o.selected && o.id === action.payload.option_id);
-      if (!option) throw new HttpError(409, "The option for this action is no longer selected.");
-      if (input.decision === "approve") assertBookingReady(option, store.state.travelers, new Date());
-      await store.save({ actions: [{ ...action, status: target, decided_at: new Date().toISOString() }],
-        events: [{ actor: "manager", title: "Quote " + target, detail: action.summary,
+      if (action.status !== "proposed" || classifyAction(action) !== "needs_manager") throw new HttpError(409, "This action no longer accepts a decision.");
+      let siblings: typeof store.state.actions = [];
+      if (action.kind === "book") {
+        if (!["ready_to_book", "booking"].includes(store.state.trip.status)) throw new HttpError(409, "This quote is not ready.");
+        const option = store.state.options.find((o) => o.selected && o.id === action.payload.option_id);
+        if (!option) throw new HttpError(409, "The option for this action is no longer selected.");
+        if (input.decision === "approve") assertBookingReady(option, store.state.travelers, new Date());
+      } else {
+        const d = store.state.workflow.disruption;
+        if (!d || d.stage !== "waiting" || !d.action_ids.includes(action.id)) throw new HttpError(409, "Recovery action is not current.");
+        if (input.decision === "approve") {
+          if (action.payload.operation === "move_dates" && (!action.payload.journey || !action.payload.meeting)) throw new HttpError(409, "Enter new dates in the recovery panel first.");
+          siblings = store.state.actions.filter((a) => d.action_ids.includes(a.id) && a.id !== action.id && a.status === "proposed")
+            .map((a) => ({ ...a, status: "rejected", decided_at: new Date().toISOString() }));
+        }
+      }
+      await store.save({ actions: [{ ...action, status: target, decided_at: new Date().toISOString() }, ...siblings],
+        events: [{ actor: "manager", title: "Decision " + target, detail: action.summary,
           data: { action_id: action.id, decision: input.decision, cost_eur: action.cost_eur } }] });
     });
     return json(publicTrip(await loadTrip(user.id, tripId)));

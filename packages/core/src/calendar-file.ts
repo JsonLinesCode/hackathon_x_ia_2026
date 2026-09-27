@@ -19,7 +19,7 @@ export function itineraryEvents(bookings: Omit<Booking, "raw">[], meeting: Meeti
         title: details.name, location: details.address, tentative: booking.status !== "booked" });
     }
   }
-  if (meeting) events.push({ id: "meeting", start: meeting.start, end: meeting.end, allDay: false, title: meeting.title, location: meeting.location, tentative: true });
+  if (meeting && !meeting.cancelled) events.push({ id: "meeting", start: meeting.start, end: meeting.end, allDay: false, title: meeting.title, location: meeting.location, tentative: true });
   return events.sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
 }
 const escapeText = (value: string) => value.replace(/\\/g, "\\\\").replace(/\r\n|\r|\n/g, "\\n").replace(/;/g, "\\;").replace(/,/g, "\\,");

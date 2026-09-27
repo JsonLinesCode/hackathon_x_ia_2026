@@ -89,17 +89,17 @@ export function publicItem(item: { traveler_id: string; flight: unknown; hotel: 
   // Opaque provider offer tokens are never sent in traveler emails.
   return JSON.parse(JSON.stringify(item, (key, value) => key === "token" ? undefined : value));
 }
-export async function applyReply(store: TripStore, outreach: Outreach, input: { decision: "confirmed" | "counter_proposal" | "declined" | "needs_review"; message: string }, actor: "traveler" | "manager", inboundId?: string) {
+export async function applyReply(store: TripStore, outreach: Outreach, input: { decision: "confirmed" | "counter_proposal" | "declined" | "needs_review"; message: string }, actor: "traveler" | "manager", inboundId?: string, receivedAt?: number) {
   const selected = store.state.options.find((o) => o.selected);
   if (store.state.trip.status !== "awaiting_travelers" || selected?.id !== outreach.metadata.option_id || outreach.status === "expired") throw new HttpError(409, "This confirmation belongs to an earlier plan.");
   const person = store.state.travelers.find((t) => t.traveler_id === outreach.traveler_id)!;
   await store.save({ travelers: [{ traveler_id: person.traveler_id, confirmation_status: input.decision, response_text: input.message }],
-    outreach: [{ ...outreach, status: "responded" }], inbound_ids: inboundId ? [inboundId] : [],
+    outreach: [{ ...outreach, status: "responded", metadata: { ...outreach.metadata, last_reply_at: receivedAt ?? Date.now() } }], inbound_ids: inboundId ? [inboundId] : [],
     events: [{ actor, title: "Traveler response: " + input.decision.replaceAll("_", " "), detail: person.traveler.full_name + ": " + input.message, data: { traveler_id: person.traveler_id, outreach_id: outreach.id } }] });
   if (input.decision === "confirmed" && store.state.travelers.every((t) => t.confirmation_status === "confirmed" && t.booking_details)) await prepareDecisions(store);
 }
-export async function applyClassifiedReply(store: TripStore, outreach: Outreach, result: ReplyClassification, body: string, inboundId: string) {
-  await applyReply(store, outreach, { decision: replyStatus(result), message: body }, "traveler", inboundId);
+export async function applyClassifiedReply(store: TripStore, outreach: Outreach, result: ReplyClassification, body: string, inboundId: string, receivedAt?: number) {
+  await applyReply(store, outreach, { decision: replyStatus(result), message: body }, "traveler", inboundId, receivedAt);
 }
 export async function remind(store: TripStore, travelerId: string) {
   const person = store.state.travelers.find((t) => t.traveler_id === travelerId);
@@ -137,7 +137,7 @@ export async function postBookingNext(store: TripStore) {
     const key = store.id + ":recap:" + person.traveler_id + ":" + store.state.bookings.map((b) => b.id).sort().join(",");
     if (store.state.actions.some((a) => a.idempotency_key === key)) continue;
     await notify(store, { email: person.traveler.email, name: person.traveler.full_name }, { key, purpose: "Travel recap", kind: "send_recap",
-      facts: { trip: store.state.trip.title, meeting: store.state.trip.meeting, bookings: store.state.bookings.filter((b) => b.traveler_id === person.traveler_id).map((b) => ({
+      facts: { trip: store.state.trip.title, meeting: store.state.trip.meeting, bookings: store.state.bookings.filter((b) => b.traveler_id === person.traveler_id && ["quoted", "booked"].includes(b.status)).map((b) => ({
         kind: b.kind, status: b.status, provider_ref: b.provider_ref, itinerary: JSON.parse(JSON.stringify(b.details, (key, value) => ["token", "payment_link", "checkout_url"].includes(key) ? undefined : value)),
       })), instruction: "Quotes are unpaid; no ticket is issued. Include times, addresses, provider reference and ask them to contact their travel manager. Never include payment links." } }); return;
   }
@@ -146,7 +146,7 @@ export async function postBookingNext(store: TripStore) {
     const profile = await store.db.from("profiles").select("email,full_name").eq("id", store.owner).single(); planningDatabase(profile.error);
     await notify(store, { email: profile.data!.email, name: profile.data!.full_name }, { key, purpose: "Manager travel recap", kind: "send_recap",
       facts: { trip: store.state.trip.title, note: "Unpaid quotes; review final prices and cancellation terms. Travelers have tentative calendar invitations." },
-      links: store.state.bookings.filter((b, i, all) => b.payment_link && all.findIndex((o) => o.payment_link === b.payment_link) === i)
+      links: store.state.bookings.filter((b) => ["quoted", "booked"].includes(b.status)).filter((b, i, all) => b.payment_link && all.findIndex((o) => o.payment_link === b.payment_link) === i)
         .map((b) => ({ label: "Jinko · " + store.state.travelers.find((t) => t.traveler_id === b.traveler_id)!.traveler.full_name, url: b.payment_link! })) }); return;
   }
   await store.save({ trip: { workflow: { ...store.state.workflow, coordination: { ...store.state.workflow.coordination, post_booking_done: true } } },

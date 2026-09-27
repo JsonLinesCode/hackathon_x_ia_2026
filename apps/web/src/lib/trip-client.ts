@@ -14,6 +14,16 @@ export function automatic(detail: TripDetail) {
   if (detail.workflow_error) return false;
   if (["understanding", "checking_availability", "searching"].includes(detail.trip.status)) return true;
   if (detail.actions.some((a) => a.gate === "auto" && ["proposed", "executing"].includes(a.status))) return true;
+  if (detail.trip.status === "disrupted" && detail.disruption) {
+    const d = detail.disruption;
+    if (["alerting", "checking", "previewing", "proposing"].includes(d.stage)) return true;
+    if (d.stage === "waiting") return detail.actions.some((a) => d.action_ids.includes(a.id) && a.status === "approved");
+    if (d.stage === "resolving") {
+      const action = detail.actions.find((a) => a.id === d.chosen_action);
+      if (action?.status === "executing" || action?.status === "approved") return !action.result?.next_poll_at || Date.parse(String(action.result.next_poll_at)) <= Date.now();
+      return action?.status === "executed" && (action.payload.operation !== "cancel_all" || detail.bookings.every((b) => !["quoted", "booked", "cancel_requested"].includes(b.status)));
+    }
+  }
   if (detail.trip.status === "booked" && !detail.coordination_done) return true;
   if (detail.trip.status === "awaiting_travelers") return detail.travelers.some((t) => ["not_requested", "counter_proposal"].includes(t.confirmation_status)) || detail.travelers.every((t) => t.confirmation_status === "confirmed" && t.booking_details);
   const selectedId = detail.options.find((o) => o.selected)?.id;

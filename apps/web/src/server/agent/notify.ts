@@ -6,7 +6,7 @@ import { getEnv } from "../env";
 import { HttpError } from "../http";
 import { draftEmail } from "../integrations/openai";
 import { MailSchema, sendMail, findSent } from "../integrations/gmail";
-import { insertEvent } from "../integrations/calendar";
+import { insertEvent, removeEvent, updateEvent } from "../integrations/calendar";
 import { planningDatabase, type TripStore } from "./store";
 
 export function proposal(store: TripStore, input: Pick<Action, "kind" | "summary" | "payload" | "idempotency_key"> & Partial<Pick<Action, "cost_eur" | "reversible" | "rationale">>) {
@@ -33,7 +33,7 @@ export async function notify(store: TripStore, recipient: { email: string; name:
 }
 export async function executeCommunication(store: TripStore) {
   const action = store.state.actions.find((a) => a.gate === "auto" && ["proposed", "executing"].includes(a.status)
-    && ["email", "calendar_insert"].includes(String(a.payload.operation)));
+    && ["email", "calendar_insert", "calendar_delete", "calendar_patch"].includes(String(a.payload.operation)));
   if (!action) return false;
   if (action.status === "proposed") assertActionExecutable(action);
   let active = action;
@@ -41,6 +41,16 @@ export async function executeCommunication(store: TripStore) {
     await store.save({ actions: [{ ...active, status: "executed", result }], outreach,
       events: [{ source: "google", title: "Action completed", detail: action.summary, data: { action_id: action.id } }] });
   };
+  if (action.payload.operation === "calendar_patch") {
+    if (action.status === "proposed") { active = { ...action, status: "executing" }; await store.save({ actions: [active] }); }
+    await updateEvent(store.owner, String(action.payload.event_id), store.id, action.payload.patch as Record<string, unknown>, store.audit);
+    await complete({ google_event_id: action.payload.event_id, updated: true }); return true;
+  }
+  if (action.payload.operation === "calendar_delete") {
+    if (action.status === "proposed") { active = { ...action, status: "executing" }; await store.save({ actions: [active] }); }
+    await removeEvent(store.owner, String(action.payload.event_id), store.audit);
+    await complete({ google_event_id: action.payload.event_id, deleted: true }); return true;
+  }
   if (action.payload.operation === "calendar_insert") {
     if (action.status === "proposed") {
       active = { ...action, status: "executing", result: { started_at: new Date().toISOString() } };

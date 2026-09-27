@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { IdSchema } from "@repo/types";
-import { effectivePolicy, evaluatePolicy } from "@repo/core";
+import { effectivePolicy, evaluatePolicy, includeRetainedHotels } from "@repo/core";
 import { requireUser } from "@/server/auth";
 import { checkOrigin, handleApi, HttpError, json, readJson } from "@/server/http";
 import { loadTrip, publicTrip, withTrip } from "@/server/agent/store";
@@ -13,7 +13,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       if (store.state.trip.status !== "options_ready") throw new HttpError(409, "An option has already been selected. Search again to choose a new plan.");
       const chosen = store.state.options.find((o) => o.id === option_id);
       if (!chosen) throw new HttpError(404, "Option not found for this trip.");
-      const evaluated = evaluatePolicy({ id: chosen.id, per_traveler: chosen.per_traveler, meeting_start: store.state.trip.meeting?.start ?? null },
+      const evaluated = evaluatePolicy({ id: chosen.id, per_traveler: includeRetainedHotels(chosen.per_traveler, store.state.bookings), meeting_start: store.state.trip.meeting?.start ?? null },
         effectivePolicy(await store.policy(), store.state.trip.budget_per_traveler));
       await store.save({
         trip: { status: store.next(evaluated.compliant ? "awaiting_travelers" : "awaiting_exception") },

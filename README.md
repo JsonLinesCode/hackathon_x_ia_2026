@@ -309,3 +309,77 @@ References: [Gmail sending](https://developers.google.com/workspace/gmail/api/gu
 [Gmail threads](https://developers.google.com/workspace/gmail/api/guides/threads),
 [Calendar events](https://developers.google.com/workspace/calendar/api/v3/reference/events/insert),
 [OAuth web server flow](https://developers.google.com/identity/protocols/oauth2/web-server).
+
+## Phase 4 — Disruptions
+
+Apply **0004_disruptions.sql** after 0003. It adds a service-only checkpoint RPC
+that can replace options while retaining booking/action history, and blocks
+replacement while a quote is executing. Configure SIMULATION_SECRET (at least
+32 characters) in .env.local and Vercel. No new dependency is required.
+
+Calendar cancellation (including 404/410) and time changes, matched Gmail notices,
+and POST /api/events enter the same persisted recovery flow. Inbound IDs are
+deduplicated. A second disruption waits while the first recovery or a quote is
+running. Gmail notices need confidence >= 0.8 and a unique saved booking/event
+reference; ambiguous notices appear as review events and do not trigger recovery.
+Sync reads one provider cart at a time to collect supplier references. A booking
+reference alone is never treated as proof of payment.
+
+Recovery checks other destination events on accessible calendars, alerts the
+manager/travelers, displays cancellation previews, and proposes cancel, move or
+keep. Unknown fees stay unknown. Jinko servicing uses the captured get_booking,
+flight_refund and hotel_cancel contracts: preview before approval, the exact
+acknowledged customer refund on commit, and the operation handle for status.
+Missing tools, unrecognized output, missing item references, expired previews,
+manual-only servicing and uncertain mutations require manual reconciliation.
+No legacy one-shot refund/cancel operation or payment tool is called.
+
+A replacement is searched from the affected outbound origin on the requested
+travel dates. Already-departed and originally disrupted flights are excluded.
+Late alternatives remain visibly non-compliant; existing active hotel costs count
+toward policy. Selecting a replacement requires traveler confirmation, any policy
+exception and a separate quote approval. If the dates/origin must change, use
+Move travel dates (or a revised request for a different origin). Moving travel
+does not silently cancel existing supplier bookings.
+
+Manual acceptance:
+- Delete or move the exact Calendar event linked to an active trip, then Sync now.
+- Test a carrier email containing the exact saved provider/supplier reference.
+- Open Disruptions: inspect other commitments, fees/refunds/deadlines and choices.
+- Reject a cancellation: no provider commit may occur. Approve one only with a
+  suitable sandbox booking and after reviewing its preview; no payment is needed.
+- For an unsupported/unpaid cart, verify Manual follow-up with its reference.
+  Record external cancellation only after checking with the provider.
+- Test lost responses/reloads: no second cancellation commit. Pending provider
+  operations are polled, and uncertain outcomes require reconciliation.
+- Verify delayed-flight invitations update, cancelled/superseded invitations are
+  removed, and replacement invitations appear after approved quoting.
+- For a late arrival, check the organizer email (when the linked Calendar event
+  supplied an organizer). No organizer address is guessed.
+- Use separate trips or resolve the current recovery before testing another event.
+
+Simulation examples (replace UUIDs, email, timestamps and provider reference;
+SIMULATION_SECRET must already be in your shell environment). These are real
+workflows: they can send emails/invitations and prepare decisions, not a mock mode.
+
+```bash
+curl "$APP_URL/api/events" -H "Authorization: Bearer $SIMULATION_SECRET" \
+  --json '{"owner_email":"manager@example.com","idempotency_key":"meeting-cancelled-001","trip_id":"TRIP_UUID","kind":"meeting_cancelled","detail":"Meeting cancelled by the organizer."}'
+
+curl "$APP_URL/api/events" -H "Authorization: Bearer $SIMULATION_SECRET" \
+  --json '{"owner_email":"manager@example.com","idempotency_key":"meeting-moved-001","trip_id":"TRIP_UUID","kind":"meeting_moved","new_start":"FUTURE_ISO_START_WITH_OFFSET","new_end":"FUTURE_ISO_END_WITH_OFFSET"}'
+
+curl "$APP_URL/api/events" -H "Authorization: Bearer $SIMULATION_SECRET" \
+  --json '{"owner_email":"manager@example.com","idempotency_key":"flight-cancelled-001","trip_id":"TRIP_UUID","booking_id":"FLIGHT_BOOKING_UUID","kind":"flight_cancelled","detail":"Carrier cancellation notice."}'
+
+curl "$APP_URL/api/events" -H "Authorization: Bearer $SIMULATION_SECRET" \
+  --json '{"owner_email":"manager@example.com","idempotency_key":"flight-delayed-001","trip_id":"TRIP_UUID","booking_id":"FLIGHT_BOOKING_UUID","kind":"flight_delayed","new_arrival":"FUTURE_ISO_ARRIVAL_WITH_OFFSET","detail":"Carrier delay notice."}'
+
+curl "$APP_URL/api/events" -H "Authorization: Bearer $SIMULATION_SECRET" \
+  --json '{"owner_email":"manager@example.com","idempotency_key":"carrier-email-001","trip_id":"TRIP_UUID","kind":"inbound_email","subject":"Flight cancelled","body":"Your flight under reference EXACT_SAVED_PROVIDER_REFERENCE has been cancelled."}'
+```
+
+A logged-in request may omit the bearer header and owner_email; ownership then
+comes exclusively from the session. Repeating the same idempotency key does not
+create another recovery. Automatic tests use isolated provider doubles; no real
+cancellation or refund was performed during implementation.

@@ -13,6 +13,9 @@ import { POST as decide } from "@/app/api/actions/[id]/decide/route";
 import { POST as sync } from "@/app/api/sync/route";
 import { POST as remind } from "@/app/api/trips/[id]/remind/route";
 import { POST as review } from "@/app/api/trips/[id]/review/route";
+import { POST as events } from "@/app/api/events/route";
+import { POST as recovery } from "@/app/api/trips/[id]/disruption/route";
+import { GET as disruptions } from "@/app/api/disruptions/route";
 const id = "11111111-1111-4111-8111-111111111111";
 const ctx = { params: Promise.resolve({ id }) };
 const request = () => new Request("http://localhost:3000/api/trips", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
@@ -21,7 +24,7 @@ describe("phase 2 authentication boundaries", () => {
   it("returns 401 JSON on all unauthenticated workflow routes before using provider keys or a service client", async () => {
     auth.requireUser.mockRejectedValue(new UnauthorizedError());
     const responses = await Promise.all([list(), create(request()), detail(request(), ctx), clarify(request(), ctx), run(request(), ctx),
-      select(request(), ctx), exception(request(), ctx), confirm(request(), ctx), decide(request(), ctx), sync(request()), remind(request(), ctx), review(request(), ctx)]);
+      select(request(), ctx), exception(request(), ctx), confirm(request(), ctx), decide(request(), ctx), sync(request()), remind(request(), ctx), review(request(), ctx), events(request()), recovery(request(), ctx), disruptions()]);
     for (const response of responses) {
       expect(response.status).toBe(401);
       expect(response.headers.get("location")).toBeNull();

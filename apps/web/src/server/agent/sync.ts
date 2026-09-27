@@ -7,6 +7,8 @@ import { planningDatabase, withTrip } from "./store";
 import { getMessage, listMessages, mailHeader, mailText, senderAddress, type GmailMessage } from "../integrations/gmail";
 import { classifyReply } from "../integrations/openai";
 import { applyClassifiedReply } from "./flows/confirmations";
+import { processDisruptionInbound, scanMeetings, refreshProviderReferences } from "./inbound";
+
 export async function queueInbound(owner: string, kind: string, key: string, payload: Record<string, unknown>) {
   const db = createServiceClient();
   const result = await db.from("inbound_events").upsert({ owner_id: owner, kind, dedupe_key: owner + ":" + key, payload }, { onConflict: "dedupe_key", ignoreDuplicates: true });
@@ -23,11 +25,11 @@ export async function processReply(owner: string, row: { id: string; payload: Re
       const current = store.state.outreach.find((o) => o.id === outreach.id)!;
       const person = store.state.travelers.find((t) => t.traveler_id === current.traveler_id)!;
       if (senderAddress(message) !== person.traveler.email || (message.labelIds ?? []).includes("SENT") ||
-        Number(message.internalDate ?? 0) < Date.parse(current.sent_at) || current.metadata.option_id !== store.state.options.find((o) => o.selected)?.id
+        Number(message.internalDate ?? 0) < Math.max(Date.parse(current.sent_at), Number(current.metadata.last_reply_at ?? 0)) || current.metadata.option_id !== store.state.options.find((o) => o.selected)?.id
         || store.state.trip.status !== "awaiting_travelers") return false;
       const body = mailText(message);
       const classified = await classifyReply(mailHeader(message, "subject"), body, store.audit);
-      await applyClassifiedReply(store, current, classified, body, row.id);
+      await applyClassifiedReply(store, current, classified, body, row.id, Number(message.internalDate));
       return true;
     });
     if (done) return true;
@@ -40,6 +42,7 @@ export async function syncOwner(owner: string) {
   planningDatabase(claim.error);
   if (!claim.data) return { running: true, processed: 0 };
   let processed = 0;
+  const deadline = Date.now() + 150000;
   try {
     const stateResult = await db.from("google_sync_state").select("*").eq("owner_id", owner).single(); planningDatabase(stateResult.error);
     const sync = stateResult.data!;
@@ -53,19 +56,25 @@ export async function syncOwner(owner: string) {
     const scanStart = sync.scan_started_at ?? new Date().toISOString();
     const since = Math.max(Date.now() - 2 * 86400000, sync.last_sync ? Date.parse(sync.last_sync) - 120000 : 0);
     const listed = await listMessages(owner, "newer_than:2d -in:sent after:" + Math.floor(since / 1000), audit, sync.cursor ?? undefined);
+    let loadedAll = true;
     for (const item of listed.messages ?? []) {
+      if (Date.now() > deadline) { loadedAll = false; break; }
       const known = await db.from("inbound_events").select("id").eq("owner_id", owner).eq("dedupe_key", owner + ":gmail:" + item.id).maybeSingle(); planningDatabase(known.error);
       if (known.data) continue;
       const message = await getMessage(owner, item.id, audit);
       await queueInbound(owner, "gmail_message", "gmail:" + item.id, { message });
     }
-    planningDatabase((await db.from("google_sync_state").update({ cursor: listed.nextPageToken ?? null,
+    if (loadedAll) planningDatabase((await db.from("google_sync_state").update({ cursor: listed.nextPageToken ?? null,
       scan_started_at: listed.nextPageToken ? scanStart : null, ...(!listed.nextPageToken ? { last_sync: scanStart } : {}) }).eq("owner_id", owner).eq("token", token)).error);
-    const pending = await db.from("inbound_events").select("*").eq("owner_id", owner).eq("kind", "gmail_message").is("processed_at", null).limit(20);
+    if (Date.now() < deadline - 90000) await refreshProviderReferences(owner, (trips.data ?? []).map((t) => t.id), deadline);
+    await scanMeetings(owner, (trips.data ?? []).map((t) => t.id), deadline);
+    const pending = await db.from("inbound_events").select("*").eq("owner_id", owner).in("kind", ["gmail_message", "travel_disruption", "simulated_email"]).is("processed_at", null).limit(20);
     planningDatabase(pending.error);
-    for (const row of pending.data ?? []) {
+    for (const row of (pending.data ?? []).sort((a, b) => Number(a.payload.message?.internalDate ?? 0) - Number(b.payload.message?.internalDate ?? 0))) {
+      if (Date.now() > deadline) break;
       try {
-        await processReply(owner, row);
+        const replied = row.kind === "gmail_message" && await processReply(owner, row);
+        if (!replied) await processDisruptionInbound(owner, row);
         planningDatabase((await db.from("inbound_events").update({ processed_at: new Date().toISOString() }).eq("owner_id", owner).eq("id", row.id)).error);
         processed++;
       } catch (error) {

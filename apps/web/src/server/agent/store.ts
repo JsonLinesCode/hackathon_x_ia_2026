@@ -11,11 +11,11 @@ type TravelerChange = { traveler_id: string; confirmation_status?: PlanTraveler[
 export type Changes = {
   trip?: Partial<Trip> & { workflow?: PlanningState };
   options?: TripOption[]; actions?: Action[]; bookings?: Booking[]; outreach?: Outreach[]; inbound_ids?: string[];
-  travelers?: TravelerChange[]; events?: EventInput[]; reset_plan?: boolean; replace_travelers?: boolean;
+  travelers?: TravelerChange[]; events?: EventInput[]; reset_plan?: boolean; replace_travelers?: boolean; clear_options?: boolean;
 };
 export function planningDatabase(error: { code?: string; message?: string } | null) {
   if (error && ["42P01", "42703", "PGRST202", "PGRST204", "PGRST205"].includes(error.code ?? "")) {
-    throw new HttpError(503, "Database setup is incomplete. Apply numbered migrations through 0003_coordination.sql in order.");
+    throw new HttpError(503, "Database setup is incomplete. Apply numbered migrations through 0004_disruptions.sql in order.");
   }
   if (error?.code === "P0001") throw new HttpError(409, "This trip changed or another step is running. Refresh before trying again.");
   checkDatabase(error);
@@ -61,9 +61,9 @@ export function publicTrip(state: TripState) {
     actions: state.actions.map((action) => ({ ...action, result: action.result ? {
       stage: action.result.stage, provider_trip_id: action.result.provider_trip_id,
       error: action.result.error, checkout_url: action.result.checkout_url,
-      expires_at: action.result.expires_at, quote_total_eur: action.result.quote_total_eur,
+      expires_at: action.result.expires_at, quote_total_eur: action.result.quote_total_eur, manual: action.result.manual, next_poll_at: action.result.next_poll_at,
     } : null })),
-    outreach: state.outreach, coordination_done: state.workflow.coordination.post_booking_done,
+    outreach: state.outreach, coordination_done: state.workflow.coordination.post_booking_done, disruption: state.workflow.disruption,
     timeline: state.timeline, workflow_error: state.workflow.error, running: state.running,
   };
 }
@@ -76,7 +76,7 @@ export class TripStore {
       const old = this.state.travelers.find((t) => t.traveler_id === change.traveler_id);
       return { confirmation_status: old?.confirmation_status ?? "not_requested", response_text: old?.response_text ?? null, booking_details: old?.booking_details ?? null, availability: old?.availability ?? null, ...change };
     });
-    const { error } = await this.db.rpc("phase3_commit", { p_trip: this.id, p_owner: this.owner, p_token: this.token, p_changes: changes });
+    const { error } = await this.db.rpc("phase4_commit", { p_trip: this.id, p_owner: this.owner, p_token: this.token, p_changes: changes });
     planningDatabase(error);
     // Reload after a commit so subsequent decisions always use persisted state.
     this.state = await loadTrip(this.owner, this.id);

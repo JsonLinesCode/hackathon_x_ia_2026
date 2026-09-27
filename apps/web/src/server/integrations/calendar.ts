@@ -9,12 +9,12 @@ export type CalendarEvent = {
   organizer?: { email?: string }; attendees?: { email?: string }[];
   extendedProperties?: { private?: Record<string, string> };
 };
-export async function listEvents(owner: string, start: string, end: string, audit: Audit, travelerId?: string) {
+export async function listEvents(owner: string, start: string, end: string, audit: Audit, travelerId?: string, calendarId = "primary") {
   const items: CalendarEvent[] = []; let token: string | undefined;
   do {
     const params = new URLSearchParams({ timeMin: start, timeMax: end, singleEvents: "true", maxResults: "250", ...(token ? { pageToken: token } : {}) });
     const data = await googleRequest<{ items?: CalendarEvent[]; nextPageToken?: string }>(owner,
-      "/calendar/v3/calendars/primary/events?" + params, audit, { label: "read calendar", travelerId });
+      "/calendar/v3/calendars/" + encodeURIComponent(calendarId) + "/events?" + params, audit, { label: "read calendar", travelerId });
     items.push(...(data.items ?? [])); token = data.nextPageToken;
     if (items.length > 1000) throw new GoogleError(422, "Too many calendar events in this window; narrow the travel dates.");
   } while (token);
@@ -58,4 +58,20 @@ export async function insertEvent(owner: string, actionId: string, tripId: strin
     }
     throw error;
   }
+}
+
+export async function removeEvent(owner: string, id: string, audit: Audit) {
+  try {
+    await googleRequest(owner, "/calendar/v3/calendars/primary/events/" + encodeURIComponent(id) + "?sendUpdates=all", audit, { method: "DELETE", label: "cancel travel invitation" });
+  } catch (error) { if (!(error instanceof GoogleError && [404, 410].includes(error.googleStatus))) throw error; }
+}
+
+export async function updateEvent(owner: string, id: string, tripId: string, patch: Record<string, unknown>, audit: Audit) {
+  const event = await getEvent(owner, id, audit);
+  if (!event || event.status === "cancelled") return;
+  if (event.extendedProperties?.private?.trip_id !== tripId) throw new GoogleError(403, "Only this application's travel invitations may be updated.");
+  const end = patch.end as { dateTime?: string } | undefined;
+  if (end?.dateTime && event.end?.dateTime && Date.parse(end.dateTime) === Date.parse(event.end.dateTime)) return;
+  await googleRequest(owner, "/calendar/v3/calendars/primary/events/" + encodeURIComponent(id) + "?sendUpdates=all", audit,
+    { method: "PATCH", label: "update travel invitation", body: patch });
 }

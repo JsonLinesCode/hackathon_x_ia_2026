@@ -2,7 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { ActionSchema, BookingDetailsSchema, BookingSchema, FlightDetailsSchema, HotelDetailsSchema, TravelerRecordSchema, type Action, type TripOption, type SearchResult } from "@repo/types";
-import { assertActionExecutable, assertBookingReady, calendarConflicts, buildBundles, classifyAction, effectivePolicy, evaluatePolicy, resolveRequest, travelerCost } from "@repo/core";
+import { assertActionExecutable, assertBookingReady, calendarConflicts, buildBundles, classifyAction, effectivePolicy, evaluatePolicy, includeRetainedHotels, resolveRequest, travelerCost } from "@repo/core";
 import { extractRequest, explainOptions } from "../../integrations/openai";
 import { withJinko } from "../../integrations/jinko";
 import { euroAmount } from "../../integrations/jinko-contract";
@@ -146,7 +146,7 @@ export async function quoteNext(store: TripStore) {
     assertActionExecutable(action);
     assertBookingReady(option, store.state.travelers, new Date());
     const policy = effectivePolicy(await store.policy(), trip.budget_per_traveler);
-    const current = evaluatePolicy({ id: option.id, per_traveler: option.per_traveler, meeting_start: trip.meeting?.start ?? null }, policy);
+    const current = evaluatePolicy({ id: option.id, per_traveler: includeRetainedHotels(option.per_traveler, store.state.bookings), meeting_start: trip.meeting?.start ?? null }, policy);
     if (JSON.stringify(current.violations) !== JSON.stringify(option.violations)) throw new HttpError(409, "Travel policy changed. Search again and approve a fresh option.");
     await store.save({ actions: [{ ...action, status: "executing", result: progress }],
       events: [{ title: "Approved quote started", detail: action.summary, data: { action_id: action.id } }] });
