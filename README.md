@@ -122,20 +122,30 @@ NEXT_PUBLIC_ prefix. The existing .gitignore excludes apps/web/.env.local.
 
 ## Vercel deployment
 
-The repository is ready to deploy from the monorepo root. `vercel.json` tells
-Vercel to install with pnpm, build only the web app and its workspace
-dependencies, and serve the Next.js output from `apps/web/.next`.
+Use `apps/web` as the Vercel project's Root Directory. Its
+[`vercel.json`](apps/web/vercel.json) defines the installation, build command,
+and output directory, overriding any older build command in the dashboard.
+The build explicitly runs Turborepo from the workspace root to build the web app
+and its workspace dependencies.
 
 In Vercel, create or update the project with these settings:
 
 | Setting | Value |
 | --- | --- |
 | Framework Preset | Next.js |
-| Root Directory | repository root |
+| Root Directory | `apps/web` |
+| Include source files outside the Root Directory | enabled (for `packages/*` and workspace configuration) |
 | Install Command | `corepack enable && pnpm install --frozen-lockfile` |
-| Build Command | `pnpm build --filter=@repo/web...` |
-| Output Directory | `apps/web/.next` |
+| Build Command | `pnpm --workspace-root exec turbo build --filter=@repo/web...` |
+| Output Directory | `.next` |
 | Node.js Version | 22.x |
+
+Projects that already use the repository root can keep that setting: the root
+[`vercel.json`](vercel.json) uses the same build command and sets the output to
+`apps/web/.next`. The output path is relative to the selected Root Directory.
+
+Do not use `pnpm build --filter=@repo/web...` inside `apps/web`: its `build`
+script invokes Next.js directly, which rejects Turborepo's `--filter` option.
 
 Add the environment variables from [.env.example](.env.example) to the Vercel
 project. Set `APP_URL` to the exact production origin, for example
