@@ -35,6 +35,7 @@ import {
 import {
   Disruptions,
   Itinerary,
+  DemoItinerary,
   TravelerHome,
   Assistant,
 } from "./traveler-views";
@@ -145,6 +146,7 @@ export function AppShell({ screen = "overview", tripId }: { screen?: Screen; tri
   const travelerScreen = ["home", "assistant", "itinerary", "profile"].includes(
     screen,
   );
+  const quickTravelerScreen = ["home", "assistant"].includes(screen) || (screen === "itinerary" && !tripId);
   const [mobileTitle, mobileSubtitle] = mobileTitles[screen];
 
   return (
@@ -273,7 +275,7 @@ export function AppShell({ screen = "overview", tripId }: { screen?: Screen; tri
             screen === "create" && "create-content",
           )}
         >
-          {screen !== "design-system" && <SyncControl />}
+          {screen !== "design-system" && !quickTravelerScreen && <SyncControl />}
           {screen === "overview" && <Dashboard />}
           {screen === "trips" && <Dashboard tripsOnly />}
           {screen === "create" && <CreateTrip />}
@@ -283,7 +285,7 @@ export function AppShell({ screen = "overview", tripId }: { screen?: Screen; tri
           {screen === "disruptions" && <Disruptions />}
           {screen === "home" && <TravelerHome />}
           {screen === "assistant" && <Assistant />}
-          {screen === "itinerary" && tripId && <Itinerary tripId={tripId} />}
+          {screen === "itinerary" && (tripId ? <Itinerary tripId={tripId} /> : <DemoItinerary />)}
           {screen === "travelers" && <TravelersManager />}
           {screen === "policies" && <PoliciesManager />}
           {screen === "profile" && <ManagerSettings />}
@@ -294,25 +296,25 @@ export function AppShell({ screen = "overview", tripId }: { screen?: Screen; tri
         {[
           {
             label: "Home",
-            href: "/",
+            href: quickTravelerScreen ? "/my-trip" : "/",
             icon: Home,
             active: ["overview", "home"].includes(screen),
           },
           {
-            label: "Trips",
-            href: "/trips",
+            label: quickTravelerScreen ? "Itinerary" : "Trips",
+            href: quickTravelerScreen ? "/itinerary" : "/trips",
             icon: Luggage,
             active: ["trips", "create", "planning", "trip", "itinerary", "report"].includes(screen),
           },
           {
-            label: "Updates",
-            href: "/disruptions",
+            label: quickTravelerScreen ? "Assistant" : "Updates",
+            href: quickTravelerScreen ? "/assistant" : "/disruptions",
             icon: Bell,
-            active: ["disruptions", "itinerary"].includes(screen),
+            active: quickTravelerScreen ? screen === "assistant" : ["disruptions", "itinerary"].includes(screen),
           },
           {
             label: "Profile",
-            href: "/profile",
+            href: quickTravelerScreen ? "/my-trip" : "/profile",
             icon: UserRound,
             active: screen === "profile",
           },

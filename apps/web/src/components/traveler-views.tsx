@@ -23,6 +23,7 @@ import { Avatar, Badge } from "@repo/ui";
 import { Button } from "@repo/ui/button";
 import { itineraryEvents, calendarFile } from "@repo/core";
 import { useTrip, dateTime } from "@/lib/trip-client";
+import { itinerary as demoItinerary } from "@/lib/travel-data";
 import { TripLoading } from "./trip-workspace";
 import { Heading, IconBox } from "./travel-primitives";
 
@@ -176,6 +177,36 @@ export function Itinerary({ tripId }: { tripId: string }) {
       <Button variant="outline" className="full-width" onClick={downloadCalendar}><CalendarPlus size={18} />{exported ? "Download calendar again" : "Export itinerary (.ics)"}</Button>
       {exported && <p role="status" className="success-text small">Calendar file downloaded. Unpaid quotes are marked tentative.</p>}
     </>}
+  </div>;
+}
+
+function DemoTimelineIcon({ kind }: { kind: string }) {
+  const Icon = kind === "car" ? CarFront
+    : kind === "hotel" ? Building2
+      : kind === "users" ? ListTodo
+        : kind === "route" ? Route
+          : kind === "pin" ? CalendarClock
+            : Plane;
+  return <Icon size={14} />;
+}
+
+export function DemoItinerary() {
+  return <div className="traveler-stack itinerary-page">
+    <div className="traveler-desktop-heading"><Heading title="Berlin itinerary" subtitle="Alice Martin · Demo traveler access" /></div>
+    <div className="confirmed-banner"><span className="confirmation-check"><CalendarClock size={23} /></span><div>
+      <strong>Updated route ready</strong><p>Your replacement flight via Frankfurt keeps the Wednesday meeting safe.</p></div><Badge tone="warning">Demo</Badge></div>
+    <div className="between"><h2>Your travel plan</h2><small className="muted">Europe/Berlin</small></div>
+    <section className="itinerary-timeline" aria-label="Demo travel itinerary">
+      {demoItinerary.map((item) => <div key={item.time + item.title} className={"timeline-row" + (item.changed ? " changed" : "")}>
+        <time>{item.time}</time>
+        <span className="timeline-marker"><DemoTimelineIcon kind={item.icon} /></span>
+        <div>
+          <div className="between"><strong>{item.title}</strong><Badge tone={item.changed ? "warning" : "neutral"}>{item.changed ? "Updated" : "Confirmed"}</Badge></div>
+          <small>{item.detail}</small>
+        </div>
+      </div>)}
+    </section>
+    <Button asChild variant="outline" className="full-width"><Link href="/my-trip"><ArrowRight size={18} />Back to trip home</Link></Button>
   </div>;
 }
 

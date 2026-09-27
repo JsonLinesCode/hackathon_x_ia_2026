@@ -8,7 +8,7 @@ export async function middleware(request: NextRequest) {
   // APIs authenticate themselves and must return JSON, never login redirects.
   if (path === "/api" || path.startsWith("/api/") || path === "/login"
     || path === "/auth" || path.startsWith("/auth/") || path === "/r" || path.startsWith("/r/")
-    || path === "/demo") {
+    || path === "/demo" || path === "/my-trip" || path === "/assistant" || path === "/itinerary") {
     return NextResponse.next();
   }
   try {
