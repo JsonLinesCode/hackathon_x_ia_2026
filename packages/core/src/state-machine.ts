@@ -12,7 +12,7 @@ const transitions: Record<TripStatus, readonly TripStatus[]> = {
   awaiting_exception: ["awaiting_travelers", "options_ready", "cancelled"],
   awaiting_travelers: ["ready_to_book", "searching", "options_ready", "cancelled"],
   ready_to_book: ["booking", "options_ready", "cancelled"],
-  booking: ["booked", "disrupted"],
+  booking: ["booked", "disrupted", "options_ready"], // Restart is allowed only before any provider mutation (server guard).
   booked: ["disrupted", "completed"],
   disrupted: ["searching", "options_ready", "booked", "cancelled"],
   cancelled: ["reported"],

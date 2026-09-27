@@ -1,0 +1,242 @@
+{
+  "structuredContent": {
+    "status": "success",
+    "data": {
+      "mode": "search",
+      "flights": [
+        {
+          "origin": "PAR",
+          "origin_city": "Paris",
+          "destination": "BER",
+          "destination_city": "Berlin",
+          "is_round_trip": true,
+          "outbound_departure": "2026-11-11T21:15:00+01:00",
+          "outbound_arrival": "2026-11-11T22:55:00+01:00",
+          "outbound_duration_min": 100,
+          "outbound_stops": 0,
+          "outbound_airline": "U2",
+          "outbound_airline_name": "easyJet",
+          "outbound_segments": [
+            {
+              "airline": "U2",
+              "airline_name": "easyJet",
+              "flight_number": "5150",
+              "aircraft": "321",
+              "departure_airport": "CDG",
+              "departure_city": "Paris",
+              "departure_time": "2026-11-11T21:15:00+01:00",
+              "arrival_airport": "BER",
+              "arrival_city": "Berlin",
+              "arrival_time": "2026-11-11T22:55:00+01:00",
+              "duration_minutes": 100,
+              "operating_carrier": "U2"
+            }
+          ],
+          "inbound_departure": "2026-11-13T21:35:00+01:00",
+          "inbound_arrival": "2026-11-13T23:25:00+01:00",
+          "inbound_duration_min": 110,
+          "inbound_airline": "U2",
+          "inbound_airline_name": "easyJet",
+          "inbound_segments": [
+            {
+              "airline": "U2",
+              "airline_name": "easyJet",
+              "flight_number": "4634",
+              "aircraft": "320",
+              "departure_airport": "BER",
+              "departure_city": "Berlin",
+              "departure_time": "2026-11-13T21:35:00+01:00",
+              "arrival_airport": "CDG",
+              "arrival_city": "Paris",
+              "arrival_time": "2026-11-13T23:25:00+01:00",
+              "duration_minutes": 110,
+              "operating_carrier": "U2"
+            }
+          ],
+          "fares": [
+            {
+              "trip_item_token": "offer__6a0f404b:0-1-0",
+              "brand_name": "LIGHT",
+              "cabin_class": "economy",
+              "total_price": "EUR 129.17",
+              "price_per_person": "EUR 129.17",
+              "price_per_passenger": [
+                {
+                  "passenger_type": "ADT",
+                  "quantity": 1,
+                  "base_fare": "EUR 87.98",
+                  "taxes": "EUR 41.19",
+                  "total_per_person": "EUR 129.17"
+                }
+              ],
+              "included_baggage": "Included",
+              "refundable": false,
+              "changeable": false,
+              "checked_bag_included": false
+            },
+            {
+              "trip_item_token": "offer__6a0f404b:0-1-1",
+              "brand_name": "INCLUSIVE",
+              "cabin_class": "economy",
+              "total_price": "EUR 263.13",
+              "price_per_person": "EUR 263.13",
+              "price_per_passenger": [
+                {
+                  "passenger_type": "ADT",
+                  "quantity": 1,
+                  "base_fare": "EUR 221.94",
+                  "taxes": "EUR 41.19",
+                  "total_per_person": "EUR 263.13"
+                }
+              ],
+              "included_baggage": "1 checked bag(s) included",
+              "refundable": false,
+              "changeable": false,
+              "checked_bag_included": true
+            },
+            {
+              "trip_item_token": "offer__6a0f404b:0-1-2",
+              "brand_name": "INCLUSIVE PLUS",
+              "cabin_class": "economy",
+              "total_price": "EUR 325.17",
+              "price_per_person": "EUR 325.17",
+              "price_per_passenger": [
+                {
+                  "passenger_type": "ADT",
+                  "quantity": 1,
+                  "base_fare": "EUR 283.98",
+                  "taxes": "EUR 41.19",
+                  "total_per_person": "EUR 325.17"
+                }
+              ],
+              "included_baggage": "1 checked bag(s) included",
+              "refundable": false,
+              "changeable": false,
+              "checked_bag_included": true
+            }
+          ]
+        },
+        {
+          "origin": "PAR",
+          "origin_city": "Paris",
+          "destination": "BER",
+          "destination_city": "Berlin",
+          "is_round_trip": true,
+          "outbound_departure": "2026-11-11T07:00:00+01:00",
+          "outbound_arrival": "2026-11-11T08:50:00+01:00",
+          "outbound_duration_min": 110,
+          "outbound_stops": 0,
+          "outbound_airline": "U2",
+          "outbound_airline_name": "easyJet",
+          "outbound_segments": [
+            {
+              "airline": "U2",
+              "airline_name": "easyJet",
+              "flight_number": "4631",
+              "aircraft": "320",
+              "departure_airport": "CDG",
+              "departure_city": "Paris",
+              "departure_time": "2026-11-11T07:00:00+01:00",
+              "arrival_airport": "BER",
+              "arrival_city": "Berlin",
+              "arrival_time": "2026-11-11T08:50:00+01:00",
+              "duration_minutes": 110,
+              "operating_carrier": "U2"
+            }
+          ],
+          "inbound_departure": "2026-11-13T21:35:00+01:00",
+          "inbound_arrival": "2026-11-13T23:25:00+01:00",
+          "inbound_duration_min": 110,
+          "inbound_airline": "U2",
+          "inbound_airline_name": "easyJet",
+          "inbound_segments": [
+            {
+              "airline": "U2",
+              "airline_name": "easyJet",
+              "flight_number": "4634",
+              "aircraft": "320",
+              "departure_airport": "BER",
+              "departure_city": "Berlin",
+              "departure_time": "2026-11-13T21:35:00+01:00",
+              "arrival_airport": "CDG",
+              "arrival_city": "Paris",
+              "arrival_time": "2026-11-13T23:25:00+01:00",
+              "duration_minutes": 110,
+              "operating_carrier": "U2"
+            }
+          ],
+          "fares": [
+            {
+              "trip_item_token": "offer__d34bdca5:0-2-0",
+              "brand_name": "LIGHT",
+              "cabin_class": "economy",
+              "total_price": "EUR 129.17",
+              "price_per_person": "EUR 129.17",
+              "price_per_passenger": [
+                {
+                  "passenger_type": "ADT",
+                  "quantity": 1,
+                  "base_fare": "EUR 87.98",
+                  "taxes": "EUR 41.19",
+                  "total_per_person": "EUR 129.17"
+                }
+              ],
+              "included_baggage": "Included",
+              "refundable": false,
+              "changeable": false,
+              "checked_bag_included": false
+            },
+            {
+              "trip_item_token": "offer__d34bdca5:0-2-1",
+              "brand_name": "INCLUSIVE",
+              "cabin_class": "economy",
+              "total_price": "EUR 263.13",
+              "price_per_person": "EUR 263.13",
+              "price_per_passenger": [
+                {
+                  "passenger_type": "ADT",
+                  "quantity": 1,
+                  "base_fare": "EUR 221.94",
+                  "taxes": "EUR 41.19",
+                  "total_per_person": "EUR 263.13"
+                }
+              ],
+              "included_baggage": "1 checked bag(s) included",
+              "refundable": false,
+              "changeable": false,
+              "checked_bag_included": true
+            },
+            {
+              "trip_item_token": "offer__d34bdca5:0-2-2",
+              "brand_name": "INCLUSIVE PLUS",
+              "cabin_class": "economy",
+              "total_price": "EUR 325.17",
+              "price_per_person": "EUR 325.17",
+              "price_per_passenger": [
+                {
+                  "passenger_type": "ADT",
+                  "quantity": 1,
+                  "base_fare": "EUR 283.98",
+                  "taxes": "EUR 41.19",
+                  "total_per_person": "EUR 325.17"
+                }
+              ],
+              "included_baggage": "1 checked bag(s) included",
+              "refundable": false,
+              "changeable": false,
+              "checked_bag_included": true
+            }
+          ]
+        }
+      ],
+      "total": 3,
+      "provider_statuses": [
+        {
+          "provider": "sabre",
+          "status": "success",
+          "offer_count": 50
+        }
+      ]
+    }
+  }
+}

@@ -6,7 +6,6 @@ import { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import {
   Bell,
-  Bot,
   ChevronsUpDown,
   Home,
   LayoutDashboard,
@@ -18,6 +17,8 @@ import {
   UserRound,
   Users,
 } from "lucide-react";
+import { api } from "@/lib/trip-client";
+import type { Trip, TravelerRecord } from "@repo/types";
 import { PRODUCT_NAME } from "@repo/core";
 import { Avatar } from "@repo/ui";
 import { Button } from "@repo/ui/button";
@@ -80,34 +81,34 @@ const breadcrumbs: Record<Screen, string> = {
   overview: "Overview",
   trips: "Trips",
   create: "Trips / Create trip",
-  planning: "Trips / Berlin Offsite / Planning",
-  trip: "Trips / Berlin Team Offsite",
+  planning: "Trips / Planning",
+  trip: "Trips / Travel plan",
   disruptions: "Disruptions / Berlin Offsite / Alice",
   home: "My trip / Berlin Offsite",
   assistant: "Assistant",
-  itinerary: "Trips / Berlin Offsite / Itinerary",
+  itinerary: "Trips / Itinerary",
   travelers: "Travelers",
   policies: "Policies",
   profile: "Settings",
   "design-system": "Shared UI",
 };
 const mobileTitles: Record<Screen, [string, string]> = {
-  overview: ["Berlin Offsite", "Tuesday, October 13"],
+  overview: ["Travel overview", "Your team travel"],
   home: ["Berlin Offsite", "Tuesday, October 13"],
   assistant: ["Assistant", "Ready when you are"],
   disruptions: ["Trip update", "Berlin Offsite"],
-  itinerary: ["Updated itinerary", "Berlin Offsite · Oct 13–15"],
+  itinerary: ["Itinerary", "Your travel plan"],
   trips: ["Trips", "Your team travel"],
-  create: ["Create trip", "Acme Europe"],
-  planning: ["Planning", "Berlin Offsite"],
-  trip: ["Berlin Team Offsite", "October 13–15"],
-  travelers: ["Travelers", "Acme Europe"],
-  policies: ["Travel policy", "Acme Europe"],
+  create: ["Create trip", "Your workspace"],
+  planning: ["Planning", "Coordinating your team"],
+  trip: ["Travel plan", "Options and decisions"],
+  travelers: ["Travelers", "Your workspace"],
+  policies: ["Travel policy", "Your workspace"],
   profile: ["Profile", "Your travel preferences"],
   "design-system": ["Shared UI", "Travel Manager"],
 };
 
-export function AppShell({ screen = "overview" }: { screen?: Screen }) {
+export function AppShell({ screen = "overview", tripId }: { screen?: Screen; tripId?: string }) {
   const reducedMotion = useReducedMotion();
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -124,40 +125,19 @@ export function AppShell({ screen = "overview" }: { screen?: Screen }) {
     window.addEventListener("keydown", listener);
     return () => window.removeEventListener("keydown", listener);
   }, []);
-  const results = [
-    {
-      title: "Berlin Team Offsite",
-      detail: "October 13–15 · 12 travelers",
-      href: "/trips/berlin",
-    },
-    {
-      title: "Alice Martin",
-      detail: "Paris · Product Lead",
-      href: "/travelers",
-    },
-    {
-      title: "Marc Bennett",
-      detail: "London · Sales Director",
-      href: "/travelers",
-    },
-    {
-      title: "Sarah Ruiz",
-      detail: "Madrid · Design Manager",
-      href: "/travelers",
-    },
-    {
-      title: "Acme Europe travel policy",
-      detail: "Economy · €180/night",
-      href: "/policies",
-    },
-    {
-      title: "Flight AF1234 cancelled",
-      detail: "Replacement confirmed",
-      href: "/disruptions",
-    },
-  ].filter((item) =>
-    `${item.title} ${item.detail}`.toLowerCase().includes(query.toLowerCase()),
-  );
+  const [searchItems, setSearchItems] = useState<{ title: string; detail: string; href: string }[]>([]);
+  useEffect(() => {
+    let active = true;
+    void Promise.all([api<Trip[]>("/api/trips"), api<TravelerRecord[]>("/api/travelers")]).then(([trips, people]) => {
+      if (active) setSearchItems([
+        ...trips.map((trip) => ({ title: trip.title, detail: trip.destination || "Trip", href: "/trips/" + trip.id })),
+        ...people.map((person) => ({ title: person.full_name, detail: person.home_city, href: "/travelers" })),
+        { title: "Company travel policy", detail: "Workspace policy", href: "/policies" },
+      ]);
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, []);
+  const results = searchItems.filter((item) => (item.title + " " + item.detail).toLowerCase().includes(query.toLowerCase()));
   const travelerScreen = ["home", "assistant", "itinerary", "profile"].includes(
     screen,
   );
@@ -186,10 +166,10 @@ export function AppShell({ screen = "overview" }: { screen?: Screen }) {
           <span>{PRODUCT_NAME}</span>
         </Link>
         <Link href="/profile" className="workspace-switch">
-          <Avatar size="sm">AC</Avatar>
+          <Avatar size="sm">TM</Avatar>
           <span>
-            <strong>Acme Europe</strong>
-            <small>Business plan</small>
+            <strong>Your workspace</strong>
+            <small>Team travel</small>
           </span>
           <ChevronsUpDown size={13} />
         </Link>
@@ -203,9 +183,6 @@ export function AppShell({ screen = "overview" }: { screen?: Screen }) {
             >
               <Icon size={16} />
               <span>{label}</span>
-              {label === "Disruptions" && (
-                <span className="notification-count">1</span>
-              )}
             </Link>
           ))}
         </nav>
@@ -265,7 +242,7 @@ export function AppShell({ screen = "overview" }: { screen?: Screen }) {
               </Link>
             </Button>
             <Link href="/profile" aria-label="Your profile">
-              <Avatar size="sm">AL</Avatar>
+              <Avatar size="sm">TM</Avatar>
             </Link>
           </div>
         </header>
@@ -276,7 +253,7 @@ export function AppShell({ screen = "overview" }: { screen?: Screen }) {
           </div>
           <Link href="/profile" aria-label="Your profile">
             <Avatar>
-              {screen === "assistant" ? <UserRound size={20} /> : "AM"}
+              {screen === "assistant" ? <UserRound size={20} /> : "TM"}
             </Avatar>
           </Link>
         </header>
@@ -292,31 +269,22 @@ export function AppShell({ screen = "overview" }: { screen?: Screen }) {
             screen === "create" && "create-content",
           )}
         >
-          {screen === "overview" && (
-            <>
-              <div className="desktop-overview">
-                <Dashboard />
-              </div>
-              <div className="mobile-home">
-                <TravelerHome />
-              </div>
-            </>
-          )}
+          {screen === "overview" && <Dashboard />}
           {screen === "trips" && <Dashboard tripsOnly />}
           {screen === "create" && <CreateTrip />}
-          {screen === "planning" && <Planning />}
-          {screen === "trip" && <TripPlan />}
+          {screen === "planning" && tripId && <Planning tripId={tripId} />}
+          {screen === "trip" && tripId && <TripPlan tripId={tripId} />}
           {screen === "disruptions" && <Disruptions />}
           {screen === "home" && <TravelerHome />}
           {screen === "assistant" && <Assistant />}
-          {screen === "itinerary" && <Itinerary />}
+          {screen === "itinerary" && tripId && <Itinerary tripId={tripId} />}
           {screen === "travelers" && <TravelersManager />}
           {screen === "policies" && <PoliciesManager />}
           {screen === "profile" && <ManagerSettings />}
           {screen === "design-system" && <DesignSystem />}
         </motion.main>
       </div>
-      <nav className="mobile-nav" aria-label="Traveler navigation">
+      <nav className="mobile-nav" aria-label="Mobile navigation">
         {[
           {
             label: "Home",
@@ -325,10 +293,10 @@ export function AppShell({ screen = "overview" }: { screen?: Screen }) {
             active: ["overview", "home"].includes(screen),
           },
           {
-            label: "Assistant",
-            href: "/assistant",
-            icon: Bot,
-            active: screen === "assistant",
+            label: "Trips",
+            href: "/trips",
+            icon: Luggage,
+            active: ["trips", "create", "planning", "trip", "itinerary"].includes(screen),
           },
           {
             label: "Updates",

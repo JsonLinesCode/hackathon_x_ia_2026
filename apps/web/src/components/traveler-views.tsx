@@ -16,22 +16,19 @@ import {
   FilePenLine,
   Lightbulb,
   ListTodo,
-  MapPin,
   Mic,
   Plane,
-  PlaneLanding,
-  PlaneTakeoff,
   Route,
   Send,
   Sparkles,
-  Users,
   WalletCards,
   Clock3,
 } from "lucide-react";
 import { Avatar, Badge } from "@repo/ui";
 import { Button } from "@repo/ui/button";
-import { cn } from "@repo/ui/utils";
-import { itinerary } from "@/lib/travel-data";
+import { itineraryEvents, calendarFile } from "@repo/core";
+import { useTrip, dateTime } from "@/lib/trip-client";
+import { TripLoading } from "./trip-workspace";
 import { Heading, IconBox } from "./travel-primitives";
 
 export function FlightCard() {
@@ -351,158 +348,40 @@ export function Disruptions() {
   );
 }
 
-const timelineIcons = {
-  car: CarFront,
-  pin: MapPin,
-  takeoff: PlaneTakeoff,
-  route: GitRoute,
-  landing: PlaneLanding,
-  hotel: Building2,
-  users: Users,
-};
-function GitRoute({ size }: { size?: number }) {
-  return <Route size={size} />;
-}
-
-export function Itinerary() {
+export function Itinerary({ tripId }: { tripId: string }) {
+  const { data, error } = useTrip(tripId);
   const [exported, setExported] = useState(false);
+  if (!data) return <TripLoading error={error} />;
+  const events = itineraryEvents(data.bookings, data.trip.meeting);
+  const timezone = data.trip.meeting?.timezone || "Europe/Paris";
   function downloadCalendar() {
-    const events = [
-      [
-        "20261013T095500Z",
-        "20261013T104000Z",
-        "Leave office",
-        "Car to Charles de Gaulle",
-      ],
-      [
-        "20261013T104000Z",
-        "20261013T113500Z",
-        "Charles de Gaulle",
-        "Terminal 1 - Gate B28",
-      ],
-      [
-        "20261013T113500Z",
-        "20261013T131500Z",
-        "Flight to Frankfurt",
-        "LH1027 - Seat 14C",
-      ],
-      [
-        "20261013T131500Z",
-        "20261013T140500Z",
-        "Frankfurt connection",
-        "Gate A12 to B04",
-      ],
-      [
-        "20261013T152000Z",
-        "20261013T161000Z",
-        "Berlin arrival and transfer",
-        "BER Terminal 1 - Driver confirmed",
-      ],
-      [
-        "20261013T161000Z",
-        "20261013T164000Z",
-        "Hotel check-in",
-        "Motel One Alexanderplatz",
-      ],
-      [
-        "20261014T070000Z",
-        "20261014T080000Z",
-        "Team meeting",
-        "Studio 3 - Alexanderplatz",
-      ],
-    ];
-    const content = [
-      "BEGIN:VCALENDAR",
-      "VERSION:2.0",
-      "PRODID:-//Travel Manager//Itinerary//EN",
-      "CALSCALE:GREGORIAN",
-      ...events.flatMap(([start, end, title, location], i) => [
-        "BEGIN:VEVENT",
-        `UID:berlin-offsite-${i}@travel-manager.local`,
-        "DTSTAMP:20260926T000000Z",
-        `DTSTART:${start}`,
-        `DTEND:${end}`,
-        `SUMMARY:${title}`,
-        `LOCATION:${location}`,
-        "END:VEVENT",
-      ]),
-      "END:VCALENDAR",
-      "",
-    ].join("\r\n");
-    const url = URL.createObjectURL(
-      new Blob([content], { type: "text/calendar;charset=utf-8" }),
-    );
+    const url = URL.createObjectURL(new Blob([calendarFile(tripId, events, new Date())], { type: "text/calendar;charset=utf-8" }));
     const link = document.createElement("a");
-    link.href = url;
-    link.download = "berlin-offsite.ics";
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
+    link.href = url; link.download = "trip-" + tripId + ".ics";
+    document.body.appendChild(link); link.click(); link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     setExported(true);
   }
-  return (
-    <div className="traveler-stack itinerary-page">
-      <div className="traveler-desktop-heading">
-        <Heading
-          title="Updated itinerary"
-          subtitle="Berlin Offsite · Oct 13–15"
-        />
-      </div>
-      <div className="confirmed-banner">
-        <span className="confirmation-check">
-          <Check size={23} />
-        </span>
-        <div>
-          <strong>Replacement confirmed</strong>
-          <p>Changed steps highlighted · Meeting unaffected</p>
-        </div>
-        <Badge tone="success">Updated</Badge>
-      </div>
-      <div className="between">
-        <h2>Tuesday, October 13</h2>
-        <small className="muted">Local time</small>
-      </div>
+  return <div className="traveler-stack itinerary-page">
+    <div className="traveler-desktop-heading"><Heading title="Travel itinerary" subtitle={data.trip.title + " · " + timezone}>
+      <Button asChild variant="outline"><Link href={"/trips/" + tripId}>Back to plan</Link></Button></Heading></div>
+    {error && <p role="alert" className="inline-alert tone-danger">{error}</p>}
+    <div className="confirmed-banner"><span className="confirmation-check"><CalendarClock size={23} /></span><div>
+      <strong>{data.bookings.length ? "Quotes prepared" : "No travel quotes yet"}</strong><p>Payment and booking confirmation remain to be completed with Jinko.</p></div><Badge tone="warning">Unpaid</Badge></div>
+    {!data.bookings.length ? <p className="surface empty-state">Approve your selected plan to prepare flight and hotel quotes.</p> : <>
+      <div className="between"><h2>Your travel plan</h2><small className="muted">{timezone}</small></div>
       <section className="itinerary-timeline" aria-label="Travel itinerary">
-        {itinerary.map((item) => {
-          const Icon = timelineIcons[item.icon];
-          return (
-            <div
-              key={item.time}
-              className={cn("timeline-row", item.changed && "changed")}
-            >
-              <time>{item.time}</time>
-              <span className="timeline-marker">
-                <Icon size={14} />
-              </span>
-              <div>
-                <div className="between">
-                  <strong>{item.title}</strong>
-                  {item.changed && (
-                    <span className="changed-label">Changed</span>
-                  )}
-                </div>
-                <small>{item.detail}</small>
-              </div>
-            </div>
-          );
-        })}
+        {events.map((item) => <div key={item.id} className="timeline-row"><time>{item.allDay ? item.start + " – " + item.end : dateTime(item.start, timezone)}</time>
+          <span className="timeline-marker">{item.allDay ? <Building2 size={14} /> : <Plane size={14} />}</span><div>
+            <div className="between"><strong>{item.title}</strong><Badge tone="neutral">{item.tentative ? "Tentative" : "Confirmed"}</Badge></div>
+            <small>{item.location}</small>
+            {!item.allDay && <small>Ends {dateTime(item.end, timezone)}</small>}
+          </div></div>)}
       </section>
-      <Button
-        variant="outline"
-        className="full-width"
-        onClick={downloadCalendar}
-      >
-        <CalendarPlus size={18} />
-        {exported ? "Download calendar again" : "Add itinerary to calendar"}
-      </Button>
-      {exported && (
-        <p role="status" className="success-text small">
-          Calendar file downloaded.
-        </p>
-      )}
-    </div>
-  );
+      <Button variant="outline" className="full-width" onClick={downloadCalendar}><CalendarPlus size={18} />{exported ? "Download calendar again" : "Export itinerary (.ics)"}</Button>
+      {exported && <p role="status" className="success-text small">Calendar file downloaded. Unpaid quotes are marked tentative.</p>}
+    </>}
+  </div>;
 }
 
 const answers: Record<string, { question: string; answer: string }> = {

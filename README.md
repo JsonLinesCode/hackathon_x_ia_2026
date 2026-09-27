@@ -1,9 +1,10 @@
 # Travel Manager
 
 B2B travel coordination using the existing desktop dashboard and mobile design system.
-Phase 1 of [BUILD_PLAN.md](BUILD_PLAN.md) is implemented: Google sign-in through
-Supabase, persistent travelers and policy, connection settings, and the tested
-domain foundation. No later-phase integrations or agent workflows are implemented.
+Phases 1 and 2 of [BUILD_PLAN.md](BUILD_PLAN.md) are implemented: Google sign-in,
+persistent travelers and policy, OpenAI request extraction, live Jinko searches,
+ranked options, recorded approvals and unpaid quote links. The existing desktop
+and mobile layout is retained. Phases 3–6 are not implemented.
 
 ## Local setup
 
@@ -93,6 +94,80 @@ app's access at https://myaccount.google.com/permissions and reconnect.
 and API permission checks are part of Phase 3. A setup error names the missing
 migration or environment variable rather than falling back to fixtures.
 
+## Phase 2 setup and acceptance
+
+Phase 1 is a prerequisite; do not rerun its migration on an initialized project.
+
+1. Run [0002_planning.sql](supabase/migrations/0002_planning.sql) once in the Supabase SQL editor.
+   It adds persisted workflow checkpoints, traveler booking details, service-only
+   leases/RPCs, and a database guard that requires a recorded decision for quotes.
+2. Set OPENAI_API_KEY, OPENAI_MODEL, JINKO_MCP_URL, JINKO_API_KEY and optionally
+   JINKO_API_KEY_HEADER in apps/web/.env.local and in Vercel. The key must belong to
+   the environment targeted by the Jinko URL. Authorization uses Bearer; other
+   header names receive the raw key. No model or environment is assumed.
+3. From the repository root, check the actual integrations:
+
+   ```bash
+   node apps/web/scripts/check-integrations.mjs
+   # Optional read-only search; substitute real future dates and airport codes:
+   node apps/web/scripts/check-jinko-search.mjs CDG BER Berlin YYYY-MM-DD YYYY-MM-DD
+   pnpm dev
+   ```
+
+   The first script prints all Jinko tool names/input schemas and checks structured
+   output with exactly OPENAI_MODEL. Discovery alone does not validate search access.
+   The second script calls only flight/hotel search. Diagnostics may consume provider
+   credits; they are never included in pnpm test.
+4. Sign in, create/select real traveler records and open /trips/new. Supply the
+   destination, exact departure/return dates, meeting start/end times, venue and
+   time zone, hotel check-in/out dates, and budget. French and English are supported.
+   Relative dates are resolved from the current date in Europe/Paris.
+5. Confirm that the Planning screen advances through persisted events. Missing
+   essential details must show a clarification form. A valid request must produce
+   distinct, ranked, explained Jinko options. Two or three are shown when live
+   inventory supplies distinct alternatives; no options are invented.
+6. Select an option. For a non-compliant option, check that confirmations and
+   quoting remain blocked until you obtain external approval and record
+   **Exception approved**. A low policy hotel cap can exercise this path.
+7. Record each traveler's confirmation with their real document names and contact
+   phone. Flights also need date of birth and document gender. Confirm adult
+   travelers and the choice to omit optional extras. Inspect cost and cancellation
+   terms before clicking **Approve quote** for each traveler.
+8. Reload or open a second tab while processing. Completed steps must persist.
+   Repeated decisions/run requests must not create another cart or checkout.
+   Reject an action on a separate test trip and verify no quote starts for it.
+9. Verify that booking rows have status quoted, provider references, raw provider
+   payloads and payment links; the action has decided_at and ends at executed.
+   Open the payment page to inspect it if desired; **do not pay as part of this test**.
+   The app never invokes a payment tool. The trip status booked is presented as
+   "Payment links ready", not as a paid or ticketed reservation.
+10. Open the itinerary, export .ics and verify UTC flight instants, hotel date-only
+    stays, meeting time zone and tentative status. Check desktop and mobile widths.
+    A second manager must not be able to load another manager's trip or approve its actions.
+
+The agent has verified live discovery, OpenAI extraction/explanation, Jinko searches
+and hotel details. The SQL migration was executed against a disposable local
+PostgreSQL engine, including isolation, concurrent lease and action-gate checks.
+The authenticated end-to-end quote/payment-link run is intentionally left to you:
+it requires your migrated Supabase project, real traveler details and your decision.
+
+If a provider mutation times out or the response cannot be saved, the persisted
+inflight marker prevents automatic replay. The UI explains that reconciliation is
+required, with the Jinko cart reference when known. Inspect that cart with Jinko
+or ask their support before starting a replacement trip. Do not reset execution
+markers blindly. Expired search offers can be refreshed with **Search again**
+before a provider quote starts; this invalidates old confirmations and approvals.
+An idle page resumes from persisted state; there is no background worker when the
+application is closed. A crashed server lease expires after 350 seconds.
+
+This phase supports up to 12 adult business travelers, shared travel dates, flights
+(one-way or round trip), and one hotel room per traveler. Requirements outside the
+implemented search filters are returned for clarification. Calendar checks, Gmail,
+reminders, real disruption handling and expenses are still later phases.
+
+See [the captured Jinko contract](docs/jinko-contract.md) for the actual tool names,
+response shapes, money handling, cancellation limitations and diagnostics.
+
 ## Architecture and security boundaries
 
 - apps/web/src/server: server-only environment access, Supabase clients and auth.
@@ -107,9 +182,11 @@ migration or environment variable rather than falling back to fixtures.
 - User-scoped clients perform travelers/policy CRUD under RLS.
   Credential tables have no user policies or grants. Composite foreign keys
   prevent attaching a different owner's traveler or trip, even in service workflows.
-- Future workflow tables are readable by their owner and writable only by trusted
+- Workflow tables are readable by their owner and writable only by trusted
   server workflows. Phase 1 grants user mutations only on travelers and policies.
-  No background worker, queue, payment flow, email sender or calendar sync exists.
+  Phase 2 adds service-only atomic commits and leases. Each API checks ownership
+  before using a service client. No background worker, queue, payment executor,
+  email sender or calendar sync exists.
 - The private receipts bucket uses owner-id/trip-id/filename paths and checks both
   account and trip ownership. Upload UI is Phase 5.
 - packages/types: shared Zod domain contracts. The small original TravelerSchema
@@ -123,7 +200,8 @@ cancellation, paid modification and report submission require a recorded manager
 decision. Free informational messages, confirmation requests, reminders, recap
 and calendar actions can be automatic only when explicitly reversible.
 Unknown cancellation terms remain unknown and require review.
-The LLM has no execution path in Phase 1.
+OpenAI only extracts and explains. It has no tools and cannot execute a booking.
+Only the orchestrator can prepare approved Jinko quotes.
 
 Default policy: economy below six hours, EUR 180 per person/night, a 60-minute
 arrival margin, and no workspace budget cap until the manager sets one.
@@ -140,7 +218,7 @@ expiry, scoped env validation, cookie sanitization, OAuth capture, auth middlewa
 and CRUD ownership/input/error handling. Unit tests use isolated test doubles;
 the application has no mock mode.
 
-## Screens retained for later phases
+## Screens
 
 | Route | Current behavior |
 | --- | --- |
@@ -148,23 +226,27 @@ the application has no mock mode.
 | /travelers | Persistent traveler CRUD |
 | /policies | Persistent policy editing |
 | /profile | Manager account, Google status, reconnect, sign out |
-| / | Existing overview / mobile traveler fixture |
-| /trips, /trips/new | Existing trip fixtures and draft behavior |
-| /trips/berlin/planning, /trips/berlin | Existing planning and approval fixtures |
-| /disruptions, /my-trip, /itinerary | Existing travel fixtures and .ics export |
-| /assistant | Existing fixture-based answers |
+| /, /trips | Real trip list and attention counts |
+| /trips/new | Persisted free-text request |
+| /trips/[id]/planning | Resumable planning and clarification |
+| /trips/[id] | Ranked options, exception approval, manual confirmations, decisions, timeline |
+| /trips/[id]/itinerary | Stored quotes and tentative .ics export |
+| /trips/berlin, /trips/berlin/planning, /itinerary | Redirect to the real trips list |
+| /disruptions, /my-trip | Original fixtures retained for their later phases |
+| /assistant | Original fixture-based answers; Phase 6 |
 | /design-system | Shared UI reference |
 
-The three wired pages no longer use browser localStorage or fixture records.
-Draft and plan localStorage remains only in unwired Phase 2 screens; replace it
-when those screens are connected. These screens do not book, email, sync, or
-monitor real trips. Their original layout, typography, bundled Inter font,
-brand mark, responsive navigation and shared UI components are preserved.
+Wired screens use neither localStorage nor fixture records. Unwired screens do
+not book, email, sync or monitor real trips. Layout, typography, bundled Inter
+font, brand mark, navigation and shared UI components are preserved.
 
-Only allowed dependencies were added: @supabase/supabase-js, @supabase/ssr,
-server-only and Vitest (development). OpenAI, Jinko and Google service SDKs are
-deferred to their phases.
+Dependencies added in Phase 2 are only openai and @modelcontextprotocol/sdk.
+Tests use isolated doubles and small captured provider responses, never an
+application mock mode. They cover request ambiguity, exact totals, UTC exports,
+auth boundaries, recorded approval, interrupted mutations and duplicate runs.
 
 Implementation references: [Supabase SSR](https://supabase.com/docs/guides/auth/server-side/creating-a-client),
 [Google OAuth](https://supabase.com/docs/guides/auth/social-login/auth-google),
-[RLS](https://supabase.com/docs/guides/database/postgres/row-level-security).
+[RLS](https://supabase.com/docs/guides/database/postgres/row-level-security),
+[OpenAI structured outputs](https://developers.openai.com/api/docs/guides/structured-outputs),
+[Jinko MCP](https://docs.gojinko.com/connect/mcp).

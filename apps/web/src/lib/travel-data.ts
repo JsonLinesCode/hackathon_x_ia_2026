@@ -16,14 +16,9 @@ export type Screen =
   | "design-system";
 
 export const screens: Record<string, Screen> = {
-  trips: "trips",
-  "trips/new": "create",
-  "trips/berlin/planning": "planning",
-  "trips/berlin": "trip",
   disruptions: "disruptions",
   "my-trip": "home",
   assistant: "assistant",
-  itinerary: "itinerary",
   "design-system": "design-system",
 };
 

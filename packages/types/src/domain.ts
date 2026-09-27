@@ -75,8 +75,9 @@ export const TripTravelerSchema = z.object({
 export const FlightSchema = z.object({
   departure: TimestampSchema, arrival: TimestampSchema, duration_minutes: z.number().int().positive(),
   cabin: z.enum(["economy", "premium_economy", "business", "first"]), price_eur: MoneySchema,
+  details: z.record(z.unknown()).optional(),
 }).refine((flight) => Date.parse(flight.arrival) > Date.parse(flight.departure), "Flight must arrive after departure");
-export const HotelSchema = z.object({ nights: z.number().int().positive(), nightly_eur: MoneySchema });
+export const HotelSchema = z.object({ nights: z.number().int().positive(), nightly_eur: MoneySchema, total_eur: MoneySchema.optional(), details: z.record(z.unknown()).optional() });
 export const TravelerOptionSchema = z.object({
   traveler_id: IdSchema, flight: FlightSchema.nullable(), hotel: HotelSchema.nullable(),
 });

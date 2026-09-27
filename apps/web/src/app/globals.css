@@ -2843,3 +2843,44 @@ td {
 .break-anywhere { overflow-wrap: anywhere; }
 .danger-text { color: hsl(var(--destructive)); }
 @media (max-width: 480px) { .managed-form-grid { grid-template-columns: 1fr; } .login-panel { padding: 24px; } }
+
+/* Phase 2: data-driven content inside the existing workspace layout. */
+.selectable-traveler { cursor: pointer; grid-template-columns: 20px minmax(180px, 1fr) minmax(150px, 1fr); }
+.selectable-traveler input, .checkbox-label input { width: 16px; height: 16px; flex: 0 0 auto; }
+.form-stack .checkbox-label { display: flex; flex-direction: row; align-items: flex-start; gap: 10px; font-weight: 400; }
+.form-stack select { border: 1px solid var(--line); padding: 10px 12px; border-radius: 6px; background: var(--surface, white); }
+.option-tabs { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.option-tab { display: flex; flex-direction: column; gap: 8px; text-align: left; cursor: pointer; padding: 18px; }
+.option-tab.chosen { outline: 2px solid hsl(var(--primary)); outline-offset: -2px; }
+.option-tab small { color: var(--subtle); }
+.real-traveler-plan { padding: 20px 0; border-bottom: 1px solid var(--line); }
+.real-traveler-plan:last-of-type { margin-bottom: 20px; }
+.fare-summary { display: flex; flex-direction: column; gap: 6px; padding-top: 12px; }
+.fare-summary p { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.fare-summary .hotel-row { margin-top: 10px; padding: 14px 0; }
+.fare-summary .hotel-row small { display: block; margin-top: 4px; }
+.decision-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 16px 0; border-top: 1px solid var(--line); }
+.decision-row p { margin: 8px 0; }
+.decision-row > div { min-width: 0; overflow-wrap: anywhere; }
+.decision-row .button-row { flex: 0 0 auto; }
+.confirmation-row { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.trip-activity { list-style: none; padding: 0; margin: 18px 0 0; max-height: 550px; overflow: auto; }
+.trip-activity li { display: flex; align-items: flex-start; gap: 12px; padding-bottom: 18px; }
+.trip-activity p { margin: 4px 0; overflow-wrap: anywhere; }
+.activity-dot { flex: 0 0 7px; width: 7px; height: 7px; margin-top: 7px; border-radius: 50%; background: hsl(var(--primary)); }
+.missing-fields { list-style: disc; padding-left: 20px; margin: 12px 0 20px; }
+.plan-metrics > div { min-width: 0; }
+.plan-metrics strong { overflow-wrap: anywhere; }
+.dark-panel p { line-height: 1.7; }
+.itinerary-page .timeline-row { grid-template-columns: minmax(100px, 155px) 28px minmax(0, 1fr); }
+.itinerary-page .timeline-row small { display: block; }
+@media (max-width: 680px) {
+  .decision-row { flex-direction: column; align-items: flex-start; }
+  .decision-row .button-row { width: 100%; }
+  .selectable-traveler { display: flex; flex-wrap: wrap; gap: 12px; }
+  .selectable-traveler .inline-detail { margin-left: 28px; }
+  .option-tabs { grid-template-columns: 1fr; }
+  .confirmation-row .person { width: 100%; }
+  .itinerary-page .timeline-row { grid-template-columns: 90px 24px minmax(0, 1fr); }
+  .itinerary-page .between { flex-wrap: wrap; gap: 6px; }
+}

@@ -1,0 +1,2212 @@
+{
+  "captured_at": "2026-09-27T10:10:48.922Z",
+  "tools": [
+    {
+      "name": "find_destination",
+      "title": "find_destination",
+      "description": "Discover travel destinations accessible from your departure airports.\n\nSearch globally or filter to specific regions. Returns destinations sorted by cheapest available flight.\n\nIMPORTANT: Use airport codes (CDG, ORY, JFK), NOT city codes (PAR, NYC). Include all nearby airports for best results (e.g., CDG + ORY for Paris).\n\nNext step: Use flight_calendar with the destination to get specific flights with offer_tokens for pricing.\n\nThe result carries `search_criteria` (what was actually searched) and, on a non-empty answer, `next`: the `flight_calendar` calls for the best destinations. Follow `next` to price a destination; on an empty answer the `message` names the window that was searched.\n\n**Cost: 1 credit per call.**",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "origins": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 3
+            },
+            "minItems": 1,
+            "description": "Origin airport IATA codes or city codes (3 letters). Include all nearby airports. Examples: [\"JFK\", \"LGA\", \"EWR\"] for NYC."
+          },
+          "destinations": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 3
+            },
+            "description": "Filter to specific destination IATA codes. Omit for global discovery mode."
+          },
+          "trip_type": {
+            "type": "string",
+            "enum": [
+              "oneway",
+              "roundtrip"
+            ],
+            "description": "Trip type: \"oneway\" or \"roundtrip\"."
+          },
+          "departure_dates": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "description": "Specific departure dates (YYYY-MM-DD). Multiple dates searched with OR logic."
+          },
+          "departure_date_ranges": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "start": {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                  "description": "Range start date (YYYY-MM-DD)"
+                },
+                "end": {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                  "description": "Range end date (YYYY-MM-DD)"
+                }
+              },
+              "required": [
+                "start",
+                "end"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Departure date ranges for flexible search."
+          },
+          "return_dates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/properties/departure_dates/items"
+            },
+            "description": "Specific return dates (YYYY-MM-DD) for round-trip flights."
+          },
+          "return_date_ranges": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "start": {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                  "description": "Range start date (YYYY-MM-DD)"
+                },
+                "end": {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                  "description": "Range end date (YYYY-MM-DD)"
+                }
+              },
+              "required": [
+                "start",
+                "end"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Return date ranges for flexible round-trip search."
+          },
+          "stay_days": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 365,
+            "description": "Exact stay duration in days."
+          },
+          "stay_days_range": {
+            "type": "object",
+            "properties": {
+              "min": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "Minimum stay duration in days"
+              },
+              "max": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 365,
+                "description": "Maximum stay duration in days"
+              }
+            },
+            "required": [
+              "min",
+              "max"
+            ],
+            "additionalProperties": false,
+            "description": "Flexible stay duration range. Example: {min: 5, max: 10}"
+          },
+          "direct_only": {
+            "type": "boolean",
+            "description": "Only return nonstop flights."
+          },
+          "cabin_class": {
+            "type": "string",
+            "enum": [
+              "economy",
+              "premium_economy",
+              "business",
+              "first"
+            ],
+            "description": "Cabin class filter."
+          },
+          "max_total": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": "Maximum price PER PERSON: the cap applies to a one-adult fare, in the requested currency. For a whole-party budget, divide it by the number of ADULTS only and treat the result as a loose pre-filter: children and lap infants usually cost less than an adult, so dividing by every traveller would exclude affordable trips. Send a per-person budget as-is. The exact whole-trip budget check is flight_search with max_price. max_total is the canonical name; preferred over the deprecated max_price alias."
+          },
+          "max_price": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": "Deprecated alias for max_total (a per-person cap on a one-adult fare). Use max_total instead."
+          },
+          "sort_by": {
+            "type": "string",
+            "enum": [
+              "lowest",
+              "recommendation"
+            ],
+            "description": "Sort order. Default: \"lowest\" (cheapest first)."
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "description": "Max destinations to return per page (1-100). Default 20."
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of destinations to skip, for pagination. Default 0."
+          },
+          "currency": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 3,
+            "description": "ISO 4217 currency code. Defaults to \"USD\"."
+          },
+          "locale": {
+            "type": "string",
+            "description": "BCP 47 locale. Defaults to \"en-US\"."
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "text",
+              "json"
+            ],
+            "default": "text",
+            "description": "Response format. \"text\" returns plain text for LLMs. \"json\" returns structured JSON."
+          },
+          "user_intent": {
+            "type": "string",
+            "description": "The end user's current request in their own words, e.g. \"help me with my travel plans\". Pass it as-is when short; otherwise condense the goal and constraints into 1-2 sentences. Strip personal identifiers (names, emails, phone numbers, addresses, payment details) — replace them with placeholders like \"[name]\". Optional and never changes the result of the call; Jinko uses it to understand demand and improve results."
+          }
+        },
+        "required": [
+          "origins",
+          "trip_type"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "flight_calendar",
+      "title": "flight_calendar",
+      "description": "Search flights between a known origin and destination using cached pricing. Use this tool whenever the user specifies BOTH where they are flying FROM and where they are flying TO.\n\nWHEN TO USE THIS TOOL (CRITICAL):\n- The user provides both an origin AND a destination (city or airport)\n- Examples: \"Paris to Barcelona\", \"JFK to CDG\", \"London to NYC for a weekend\"\n- Supports loose / flexible dates: single dates, date arrays, date ranges, stay_days\n- ALSO the right tool for \"cheapest flight\", \"best flight\", \"find me a flight\", \"cheapest date\" phrasings — returns the cheapest cached itineraries.\n\nWHEN TO USE find_destination INSTEAD:\n- The user does NOT specify a destination: \"Where should I go from Paris?\", \"Best deals from NYC\"\n- The user wants inspiration: \"Beach destinations from London\", \"Cheap flights from SF\"\n\nWHEN TO USE flight_search INSTEAD:\n- The user has committed to EXACT dates — single departure date AND single return date on one specific route.\n- Example: \"Paris → NYC, June 17 → June 26\"\n- flight_search hits live pricing (each call has a cost) and is the step immediately before booking. Use only once route + both dates are locked.\n\nIMPORTANT:\n  All dates in query parameters (departure_dates, departure_date_ranges, return_dates, return_date_ranges) MUST be in the future. Never use past dates.\n  Please fill as much as possible search parameters based on user intent to get best results.\n  Origin and destination must be IATA city code by default except if the user specifies IATA Airport code in the search.\n\nROUTE SEARCH:\n- Use exact 3-letter IATA airport codes or IATA city code for both origin and destination\n- Date ranges OR stay duration for flexible trip planning\n- Natural trip duration (stay_days) instead of exact return dates\n- By default, please search roundtrip flights unless user specifies one-way. Use trip_type=\"oneway\" ONLY when the user explicitly asks for a one-way trip\n\nUSE CASES:\n✓ \"Find flights from JFK to CDG next month\" - Specific route with date range\n✓ \"Fly from Los Angeles to Tokyo for a week in December\" - Uses departure_date + stay_days\n✓ \"Paris to Barcelona for a weekend in April\" - Specific route\n✓ \"Cheapest flight from ORD to LHR under $600\" - Specific route with budget\n✓ \"Direct flight in business class from New York to London\" - Specific route with preferences\n\nFlow: flight_calendar → flight_search (price-check) → trip → checkout\n\nThe result carries `search_criteria` (what was actually searched) and `next` (the call to make next — on an empty answer up to three exact-date `flight_search` searches, on a non-empty one `price_check` for the best candidates). Follow `next` before telling the user there are no flights or quoting a cached price.\n\n**Cost: 1 credit per call.**",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "origin": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 3,
+            "description": "Origin airport IATA code or city code (3 letters). Examples: \"JFK\", \"PAR\"."
+          },
+          "destination": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 3,
+            "description": "Destination airport IATA code or city code (3 letters). Examples: \"CDG\", \"NRT\"."
+          },
+          "trip_type": {
+            "type": "string",
+            "enum": [
+              "oneway",
+              "roundtrip"
+            ],
+            "description": "Trip type: \"oneway\" or \"roundtrip\"."
+          },
+          "departure_dates": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "description": "Specific departure dates (YYYY-MM-DD). Multiple dates searched with OR logic."
+          },
+          "departure_date_ranges": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "start": {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                  "description": "Range start date (YYYY-MM-DD)"
+                },
+                "end": {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                  "description": "Range end date (YYYY-MM-DD)"
+                }
+              },
+              "required": [
+                "start",
+                "end"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Departure date ranges for flexible search."
+          },
+          "return_dates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/properties/departure_dates/items"
+            },
+            "description": "Specific return dates (YYYY-MM-DD) for round-trip flights."
+          },
+          "return_date_ranges": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "start": {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                  "description": "Range start date (YYYY-MM-DD)"
+                },
+                "end": {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                  "description": "Range end date (YYYY-MM-DD)"
+                }
+              },
+              "required": [
+                "start",
+                "end"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Return date ranges for flexible round-trip search."
+          },
+          "stay_days": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 365,
+            "description": "Exact stay duration in days. Auto-calculates return date."
+          },
+          "stay_days_range": {
+            "type": "object",
+            "properties": {
+              "min": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "Minimum stay duration in days"
+              },
+              "max": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 365,
+                "description": "Maximum stay duration in days"
+              }
+            },
+            "required": [
+              "min",
+              "max"
+            ],
+            "additionalProperties": false,
+            "description": "Flexible stay duration range. Example: {min: 5, max: 10}"
+          },
+          "direct_only": {
+            "type": "boolean",
+            "description": "Only return nonstop flights."
+          },
+          "cabin_class": {
+            "type": "string",
+            "enum": [
+              "economy",
+              "premium_economy",
+              "business",
+              "first"
+            ],
+            "description": "Cabin class filter."
+          },
+          "departure_time_range": {
+            "type": "object",
+            "properties": {
+              "earliest": {
+                "type": "string",
+                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                "description": "Inclusive earliest local time-of-day (HH:MM, 24-hour)."
+              },
+              "latest": {
+                "type": "string",
+                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                "description": "Inclusive latest local time-of-day (HH:MM, 24-hour)."
+              }
+            },
+            "additionalProperties": false,
+            "description": "Filter the OUTBOUND leg by local departure time-of-day. Example: { \"earliest\": \"08:00\", \"latest\": \"12:00\" }."
+          },
+          "arrival_time_range": {
+            "type": "object",
+            "properties": {
+              "earliest": {
+                "type": "string",
+                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                "description": "Inclusive earliest local time-of-day (HH:MM, 24-hour)."
+              },
+              "latest": {
+                "type": "string",
+                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                "description": "Inclusive latest local time-of-day (HH:MM, 24-hour)."
+              }
+            },
+            "additionalProperties": false,
+            "description": "Filter the OUTBOUND leg by local arrival time-of-day. Example: { \"latest\": \"20:00\" }."
+          },
+          "return_departure_time_range": {
+            "type": "object",
+            "properties": {
+              "earliest": {
+                "type": "string",
+                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                "description": "Inclusive earliest local time-of-day (HH:MM, 24-hour)."
+              },
+              "latest": {
+                "type": "string",
+                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                "description": "Inclusive latest local time-of-day (HH:MM, 24-hour)."
+              }
+            },
+            "additionalProperties": false,
+            "description": "Round-trip only. Filter the RETURN leg by local departure time-of-day."
+          },
+          "return_arrival_time_range": {
+            "type": "object",
+            "properties": {
+              "earliest": {
+                "type": "string",
+                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                "description": "Inclusive earliest local time-of-day (HH:MM, 24-hour)."
+              },
+              "latest": {
+                "type": "string",
+                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                "description": "Inclusive latest local time-of-day (HH:MM, 24-hour)."
+              }
+            },
+            "additionalProperties": false,
+            "description": "Round-trip only. Filter the RETURN leg by local arrival time-of-day."
+          },
+          "max_total": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": "Maximum price PER PERSON: the cap applies to a one-adult fare, in the requested currency. For a whole-party budget, divide it by the number of ADULTS only and treat the result as a loose pre-filter: children and lap infants usually cost less than an adult, so dividing by every traveller would exclude affordable trips. Send a per-person budget as-is. The exact whole-trip budget check is flight_search with max_price. max_total is the canonical name; preferred over the deprecated max_price alias."
+          },
+          "max_price": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": "Deprecated alias for max_total (a per-person cap on a one-adult fare). Use max_total instead."
+          },
+          "sort_by": {
+            "type": "string",
+            "enum": [
+              "lowest",
+              "recommendation"
+            ],
+            "description": "Sort order. Default: \"lowest\" (cheapest first)."
+          },
+          "currency": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 3,
+            "description": "ISO 4217 currency code. Defaults to \"USD\"."
+          },
+          "locale": {
+            "type": "string",
+            "description": "BCP 47 locale. Defaults to \"en-US\"."
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "text",
+              "json"
+            ],
+            "default": "text",
+            "description": "Response format. \"text\" returns plain text for LLMs. \"json\" returns structured JSON."
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "description": "Max results to return per page (1-100). Default 20."
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of results to skip, for pagination. Default 0."
+          },
+          "user_intent": {
+            "type": "string",
+            "description": "The end user's current request in their own words, e.g. \"help me with my travel plans\". Pass it as-is when short; otherwise condense the goal and constraints into 1-2 sentences. Strip personal identifiers (names, emails, phone numbers, addresses, payment details) — replace them with placeholders like \"[name]\". Optional and never changes the result of the call; Jinko uses it to understand demand and improve results."
+          }
+        },
+        "required": [
+          "origin",
+          "destination",
+          "trip_type"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "price_monitoring",
+      "title": "price_monitoring",
+      "description": "Cache-only flight price snapshot for a fixed origin/destination + dates pair. Intended for scheduled polling — NOT for one-shot shopping or booking.\n\nWHEN TO USE:\n- Track the price of a specific route + dates over time and react when it drops (cron / scheduled job).\n- Recommended cadence: poll no faster than the cache refresh interval. Polling faster is wasted work.\n\nWHAT IT RETURNS:\n- The single cheapest cached itinerary matching the request filters (lowest WITHIN the filter constraints — filters constrain the candidate set, not the win condition).\n- Its price is a ONE-ADULT fare. traveler_counts has no effect on the fare, max_price cap, or returned flight (the price and cap are for one adult; the counts are only echoed back in request_echo); the response contains no booking link. Use flight_search with max_price for the exact whole-trip budget check for all passengers.\n- An offer_token that remains re-shoppable via flight_search (price_check mode) when the user decides to book.\n- status: \"ok\" (offer present) or \"stale\" (cache had no matching itinerary — retry later, or call flight_search for a live quote).\n\nWHEN TO USE flight_search INSTEAD:\n- The user is ready to book NOW and needs a live quote.\n- One-shot exploration where you don't intend to come back.\n\nWHEN TO USE flight_calendar / find_destination INSTEAD:\n- Flexible dates or ranges — price_monitoring requires exact departure_date (+ optional exact return_date).\n- The user is still exploring and hasn't committed to a specific route to monitor.\n\nCACHE-ONLY CONTRACT:\n- This tool NEVER triggers a live connector call. status:\"stale\" is the correct response when the cache is cold — do not retry in a tight loop and do not silently fall back to flight_search.\n\nINPUT NOTES:\n- Origin / destination: IATA city code preferred (PAR, NYC, LON); pin to airport only when the user actually committed to a specific airport.\n- Use the SAME filter set the user has been monitoring against between polls.\n\nThe result carries `search_criteria` (what was actually monitored). On `status: \"stale\"` it also carries `next`: the live `flight_search` for the same dates, to offer when the user needs a price now — monitoring itself stays cache-only.\n\n**Cost: 1 credit per call.**",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "origin": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 3,
+            "description": "Origin IATA city code (e.g. PAR, NYC, LON) or airport code (CDG, JFK, LHR). City codes preferred — they cover every airport in the city."
+          },
+          "origin_type": {
+            "type": "string",
+            "enum": [
+              "city",
+              "airport"
+            ],
+            "description": "How to interpret origin. \"city\" (default) searches all airports in the city; \"airport\" pins to one airport."
+          },
+          "destination": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 3,
+            "description": "Destination IATA city code (e.g. MIL, BCN, TYO) or airport code (MXP, BCN, NRT). City codes preferred."
+          },
+          "destination_type": {
+            "type": "string",
+            "enum": [
+              "city",
+              "airport"
+            ],
+            "description": "How to interpret destination. Same semantics as origin_type."
+          },
+          "departure_date": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "description": "Single departure date (YYYY-MM-DD). Exactly one date — no arrays or ranges."
+          },
+          "return_date": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "description": "Single return date (YYYY-MM-DD). Omit for one-way. Must be on or after departure_date."
+          },
+          "direct_only": {
+            "type": "boolean",
+            "description": "If true, only return non-stop flights. Mirror the upstream filter the user committed to when they started monitoring."
+          },
+          "cabin_class": {
+            "type": "string",
+            "enum": [
+              "economy",
+              "premium_economy",
+              "business",
+              "first"
+            ],
+            "description": "Cabin class filter. Omit for economy."
+          },
+          "max_price": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": "Maximum price PER PERSON: the cap applies to a one-adult fare, in the requested currency. For a whole-party budget, divide it by the number of ADULTS only and treat the result as a loose pre-filter: children and lap infants usually cost less than an adult, so dividing by every traveller would exclude affordable trips. Send a per-person budget as-is. The exact whole-trip budget check is flight_search with max_price. traveler_counts has no effect on the fare, max_price cap, or returned flight (the counts are only echoed back in request_echo). Lowest-fare semantics are \"lowest within the filter constraints\" — max_price tightens the candidate set, not the win condition."
+          },
+          "include_carriers": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 2
+            },
+            "description": "IATA 2-letter marketing carrier codes to include (whitelist). Example: [\"AF\",\"KL\"]. Use to lock monitoring to specific airlines the user actually flies."
+          },
+          "exclude_carriers": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 2
+            },
+            "description": "IATA 2-letter marketing carrier codes to exclude (blacklist). Example: [\"FR\",\"U2\"]. Use to keep airlines the user refuses out of the picture."
+          },
+          "traveler_counts": {
+            "type": "object",
+            "properties": {
+              "adults": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9,
+                "default": 1,
+                "description": "Number of adult travelers (12+)."
+              },
+              "children": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 8,
+                "default": 0,
+                "description": "Number of child travelers (2-11)."
+              },
+              "infants": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4,
+                "default": 0,
+                "description": "Infant travelers (under 2), traveling on an adult's lap. Seated infants (own seat) are not supported."
+              }
+            },
+            "additionalProperties": false,
+            "description": "Traveler counts. Defaults to 1 adult. They do not affect the fare, the max_price cap, or the returned flight (the counts are only echoed back in request_echo). The price and cap are for one adult, and the response contains no booking link."
+          },
+          "locale": {
+            "type": "string",
+            "description": "User's BCP 47 locale (e.g. \"fr-FR\", \"en-US\"). Inherits from the conversation locale if omitted."
+          },
+          "currency": {
+            "type": "string",
+            "description": "ISO 4217 currency code (e.g. \"EUR\", \"USD\"). Inherits from the conversation if omitted. Must match the currency the user is monitoring against — switching currencies mid-poll is not what they want."
+          },
+          "user_intent": {
+            "type": "string",
+            "description": "The end user's current request in their own words, e.g. \"help me with my travel plans\". Pass it as-is when short; otherwise condense the goal and constraints into 1-2 sentences. Strip personal identifiers (names, emails, phone numbers, addresses, payment details) — replace them with placeholders like \"[name]\". Optional and never changes the result of the call; Jinko uses it to understand demand and improve results."
+          }
+        },
+        "required": [
+          "origin",
+          "destination",
+          "departure_date"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "find_ground",
+      "title": "find_ground",
+      "description": "Search ground-transport connections — bus/coach, rail, or ferry — between two cities (or stations) on a given date, powered by Distribusion.\n\nWHEN TO USE THIS TOOL:\n- The user wants to travel between two places by train, bus/coach, or ferry.\n- Examples: \"trains from Paris to London\", \"bus from Berlin to Prague tomorrow\", \"ferry Barcelona to Palma next week\".\n- Provide both a departure and an arrival (city codes preferred, e.g. FRPAR, GBLON) and a departure date.\n\nLOCATION CODES — these are Distribusion codes, NOT IATA:\n- City code = 5 characters: ISO 3166-1 alpha-2 country + 3-letter city. Paris = FRPAR, London = GBLON, Berlin = DEBER, Barcelona = ESBCN, Rome = ITROM.\n- Station code = 8 characters: the 5-character city code + a 3-letter station suffix. Paris Gare du Nord = FRPARPGN, London St Pancras = GBLONLIB.\n- A 3-letter IATA code (PAR, LON) is rejected by the provider. If you only know the IATA code, prepend the country: PAR -> FRPAR, LON -> GBLON.\n- NEVER send a city NAME. \"Amsterdam\", \"Paris\" and \"London\" are all rejected. Convert the name first: take the country's ISO 3166-1 alpha-2 code and the city's 3-letter code (usually its IATA code), and concatenate. Amsterdam (Netherlands) -> NL + AMS -> NLAMS. Brussels (Belgium) -> BE + BRU -> BEBRU. Prague (Czechia) -> CZ + PRG -> CZPRG.\n- More codes: Amsterdam NLAMS, Brussels BEBRU, Prague CZPRG, Madrid ESMAD, Milan ITMIL, Vienna ATVIE, Zurich CHZRH, Lisbon PTLIS, Munich DEMUC, Lyon FRLYS.\n\nINPUTS:\n- departure_city / arrival_city: 5-character Distribusion city codes (FRPAR, GBLON, DEBER). Preferred for chat — a city search covers every station in that city.\n- departure_stations / arrival_stations: 8-character Distribusion station codes when the user named a specific station.\n- departure_date (required, YYYY-MM-DD, today or later); return_date optional for round trips.\n- passenger_ages: the age of each traveller (e.g. [38, 9]) — use this whenever anyone is not an adult, so the carrier prices children/youth/senior fares correctly. Infants under one: send 1.\n- passengers: number of travelers, all priced as adults (default 1). Ignored when passenger_ages is given.\n\nThe tool returns a list of connections with carrier, transport mode, stations, times, duration, and a \"from\" price (carrier currency — final fare and fees are confirmed at checkout).\n\nTO BOOK A RESULT:\n- Each connection carries a **trip_item_token**. Pass it VERBATIM as trip(add_item).trip_item_token, then upsert_travelers, then checkout — the same flow as flights.\n- Do NOT pass fares[].offer_id. That field identifies the fare within our search cache and is rejected by trip(add_item) with \"Bad Request\". The bookable value is the connection's trip_item_token.\n- Copy the token exactly, including its trailing \"-<number>\". Truncating it returns \"Not Found\".\n- To book a specific fare, pass add_item.fare_class on trip — either the carrier fare NAME from fares[].fare_name (e.g. \"PREMIER\") or the code from fares[].fare_class (e.g. \"FARE-32\"); both select the same fare. Omit it and the connection books at its CHEAPEST fare, the \"from\" price shown here.\n\n**Cost: 1 credit per call.**",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "departure_city": {
+            "type": "string",
+            "description": "Departure city code — 5 characters, ISO 3166-1 alpha-2 country + 3-letter city (e.g. \"FRPAR\" Paris, \"GBLON\" London, \"NLAMS\" Amsterdam, \"BEBRU\" Brussels). NOT a city NAME — \"Amsterdam\" is rejected — and NOT the 3-letter IATA code: \"PAR\" is rejected, send \"FRPAR\". Provide this OR departure_stations."
+          },
+          "arrival_city": {
+            "type": "string",
+            "description": "Arrival city code — 5 characters, ISO 3166-1 alpha-2 country + 3-letter city (e.g. \"GBLON\" London, \"BEBRU\" Brussels). NOT a city NAME and NOT the 3-letter IATA code. Provide this OR arrival_stations."
+          },
+          "departure_stations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Distribusion departure station codes — 8 characters, city code + station suffix (e.g. \"FRPARPGN\" for Paris Gare du Nord). Use when the user named a specific station; otherwise prefer departure_city, which covers every station in the city."
+          },
+          "arrival_stations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Distribusion arrival station codes — 8 characters (e.g. \"GBLONLIB\" for London St Pancras). Otherwise prefer arrival_city."
+          },
+          "departure_date": {
+            "type": "string",
+            "description": "REQUIRED departure date in ISO 8601 format (YYYY-MM-DD). Must be today or later."
+          },
+          "return_date": {
+            "type": "string",
+            "description": "Optional return date (YYYY-MM-DD) for a round trip. Must be on/after departure_date."
+          },
+          "passengers": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9,
+            "description": "Number of passengers, all priced as adults. Defaults to 1. Use passenger_ages instead when anyone is a child, youth or senior — carriers price those differently and a bare count charges everyone the adult fare."
+          },
+          "passenger_ages": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 120
+            },
+            "minItems": 1,
+            "maxItems": 9,
+            "description": "Age of each traveller at the time of travel, e.g. [38, 9] for one adult and one child. For an infant under one year old, send 1 — age 0 cannot survive the wire encoding and would be priced as an adult, and no carrier's age bands split under-1 from 1. Carriers set their own bands (a child might be 0-15 on one operator and 4-11 on another), so sending the real age lets the carrier apply the right fare instead of everyone paying the adult price. Takes precedence over `passengers` when both are given."
+          },
+          "carrier_codes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Optional list of carrier codes to restrict the search to specific operators."
+          },
+          "locale": {
+            "type": "string",
+            "description": "User BCP 47 locale (e.g. \"fr-FR\", \"en-US\"). Inferred from the conversation."
+          },
+          "currency": {
+            "type": "string",
+            "description": "ISO 4217 currency code (e.g. \"EUR\", \"GBP\"). Inferred from the user's country/locale."
+          },
+          "user_intent": {
+            "type": "string",
+            "description": "The end user's current request in their own words, e.g. \"help me with my travel plans\". Pass it as-is when short; otherwise condense the goal and constraints into 1-2 sentences. Strip personal identifiers (names, emails, phone numbers, addresses, payment details) — replace them with placeholders like \"[name]\". Optional and never changes the result of the call; Jinko uses it to understand demand and improve results."
+          }
+        },
+        "required": [
+          "departure_date"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "flight_search",
+      "title": "flight_search",
+      "description": "Get live flight pricing and fare options. Provide exactly one of the \"search\" or \"price_check\" nested objects:\n\n1. search: Live flight search by route and dates.\n   Example: { \"search\": { \"origin\": \"PAR\", \"destination\": \"NYC\", \"departure_date\": \"2027-06-01\" } }\n   Required fields: origin, destination, departure_date.\n   Optional filters: return_date, trip_type, cabin_class, max_stops, multi_fare, max_price (whole-trip budget for all passengers), limit, include_carriers, exclude_carriers, single_carrier_only, departure_time_range, arrival_time_range, return_departure_time_range, return_arrival_time_range, connection_time_min_minutes, connection_time_max_minutes, max_total_duration_minutes, refundable_only, changeable_only, checked_bag_included, via_airports, exclude_via_airports, aircraft_types, origin_alternate_airports, destination_alternate_airports, nearby_airports, same_connection_airport_only, same_origin_airport_only, same_turnaround_airport_only, origin_type, destination_type.\n   DATE FLEXIBILITY: this call prices ONE exact date pair. Send \"give or take a day\", open windows and date ranges to flight_calendar instead. flight_calendar takes only direct_only, cabin_class, max_total and the time windows — refundable_only, changeable_only, checked_bag_included, max_stops and the carrier lists are NOT in its input. So when the user gave constraints like those, do not stop at the calendar result: once they pick dates there, call flight_search again on those exact dates WITH the original filters. The calendar budget is per adult: the calendar's (and find_destination's) max_total caps a one-adult fare; a whole-party budget is divided by adults only for a loose pre-filter. This tool's max_price covers the whole trip for all passengers — send the user's whole-trip figure unchanged, or for a per-person figure multiply by the number of passengers. Never carry the calendar budget across as max_total; flight_search refuses that name.\n\n2. price_check: Get live pricing for a specific flight deal from discovery tools (flight_calendar, find_destination, flight_calendar).\n   Example: { \"price_check\": { \"offer_token\": \"token_from_discovery\" } }\n\nIMPORTANT: \"search\" and \"price_check\" are nested objects, not string values. Do NOT pass them as strings.\n\nSANDBOX: Airline and route coverage is limited. American Airlines (AA) on JFK–LAX with a future date is a tested starting point, not guaranteed availability. Check unapplied_filters for carrier substitutions.\n\nRESPONSE:\n- The text result is a summary, not JSON: the itinerary count, carriers, stops and price range, then each itinerary's legs (local times, durations, stopovers) and one line per fare ending in trip_item_token=<token>, with that fare's price, refund, change and checked-bag terms on the same line. Every bookable token is listed.\n- structuredContent carries the full payload: every flight with detailed segments and fare options with baggage/refund/change rules and a trip_item_token per fare. Every fare also carries refundable, changeable and checked_bag_included booleans.\n- In structuredContent, applied_filters lists the search filters this result set enforces; unapplied_filters lists the ones NO provider could enforce, each with a reason (and filters_notice spells the same thing out in one sentence, which the text summary also prints). A filter in unapplied_filters still has to be applied by you — the flights were not narrowed by it. Both reports name a leg SIDE for the alternate-airport lists: an origin_alternate_airports / destination_alternate_airports list appears as \"origin\" / \"destination\".\n- filter_enforcement says, for each applied filter, whether the provider search enforced it (provider) or the platform filtered the returned offers (post_filter). A post_filter entry without exhaustive: true means more matching itineraries may exist than were returned: say so when the user asked for all or the cheapest matching options.\n- origin_alternate_airports / destination_alternate_airports take effect only against an AIRPORT anchor. Sent with a city anchor (origin_type / destination_type \"city\", or a code that resolves to a city) the search still runs and returns flights, the list is ignored, and the side comes back in unapplied_filters with the reason — that is a warning to relay, not an error.\n- price_check may return status \"offer_unavailable\" when the selected offer no longer matches, including its cabin. The same flight may still have other fares. Show any returned alternatives and ask the user to choose; do not book the original offer.\n\nNEXT STEP: Use the trip tool with add_item and the trip_item_token from the fare the user selects.\n\nFlow: discovery (flight_calendar / find_destination / flight_calendar) or direct search → flight_search → trip → checkout\n\nPASSENGERS: If a search fails, surface the error — never retry with a changed passenger list (e.g. dropping an infant); that silently changes the user's request.\n\nPRICES: total_price is for all travellers; price_per_person is per person.\n\n**Cost: 10 credits per call.**",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "search": {
+            "type": "object",
+            "properties": {
+              "origin": {
+                "type": "string",
+                "pattern": "^[A-Z]{3}$",
+                "description": "Origin IATA city code (e.g. PAR, NYC, LON) or airport code (e.g. CDG, JFK, LHR). City codes preferred — they search all airports in the city. ALWAYS convert place names to codes yourself before calling (Paris → PAR, Mexico City → MEX, Miami → MIA); a name like \"Paris\" fails validation. Required."
+              },
+              "origin_type": {
+                "type": "string",
+                "enum": [
+                  "city",
+                  "airport"
+                ],
+                "description": "How to interpret origin: \"city\" searches all airports in the city; \"airport\" restricts to that specific airport. OMIT unless the user named a specific airport — when absent the code is resolved from the airport/city catalogue, which classifies it correctly on its own. Guessing \"city\" for an airport code (CDG, JFK) misreads the route."
+              },
+              "destination": {
+                "type": "string",
+                "pattern": "^[A-Z]{3}$",
+                "description": "Destination IATA city code (e.g. MIL, BCN, TYO) or airport code (e.g. MXP, BCN, NRT). City codes preferred. ALWAYS convert place names to codes yourself before calling (Tokyo → TYO, São Paulo → SAO); a name like \"Tokyo\" fails validation. Required."
+              },
+              "destination_type": {
+                "type": "string",
+                "enum": [
+                  "city",
+                  "airport"
+                ],
+                "description": "How to interpret destination: \"city\" searches all airports; \"airport\" restricts to that specific airport. OMIT unless the user named a specific airport — when absent the code is resolved from the airport/city catalogue."
+              },
+              "departure_date": {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                "description": "Single departure date (YYYY-MM-DD) — no arrays or ranges. Required."
+              },
+              "return_date": {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                "description": "Single return date (YYYY-MM-DD) for a round trip. Omit for one-way."
+              },
+              "trip_type": {
+                "type": "string",
+                "enum": [
+                  "oneway",
+                  "roundtrip"
+                ],
+                "description": "Optional. Derived from return_date when omitted."
+              },
+              "cabin_class": {
+                "type": "string",
+                "enum": [
+                  "economy",
+                  "premium_economy",
+                  "business",
+                  "first"
+                ],
+                "description": "Preferred cabin. ADVISORY, not a filter: it is forwarded to the providers as a preference (Sabre CabinPref, TravelFusion TravelClass) and they may still return other cabins. It is NOT part of the applied/unapplied filter contract and never appears in `applied_filters` — read each fare's own `cabin_class` to see what actually came back. Omit (default) for economy. Use when the user says \"business class\", \"first class\", etc."
+              },
+              "direct_only": {
+                "type": "boolean",
+                "description": "DEPRECATED — send `max_stops: 0` instead. Still accepted: `direct_only: true` is folded into `max_stops: 0` before the search runs and only `max_stops` reaches the platform, so the applied/unapplied filter report always names `max_stops`, never `direct_only`. Setting it beside a non-zero `max_stops` is an error."
+              },
+              "max_stops": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 2,
+                "description": "Maximum stops per leg (0-2). 0 = nonstop — send `max_stops: 0` when the user says \"direct only\" / \"non-stop\" / \"no layovers\"; 1 when the user says \"at most one stop\"."
+              },
+              "multi_fare": {
+                "type": "boolean",
+                "description": "Defaults to TRUE: several branded fares per itinerary (the upsell ladder). Set false for a single fare per itinerary and much smaller responses."
+              },
+              "max_price": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "description": "Maximum total price for the whole trip and ALL passengers together, in the requested currency. Send the user's whole-trip budget unchanged, or multiply a per-person budget by the number of passengers."
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 300,
+                "description": "TOTAL number of flights returned (1–300). Caps the whole result set, not a per-page size; it only trims what comes back, since the providers still bound the real count."
+              },
+              "include_carriers": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Z0-9]{2}$"
+                },
+                "description": "IATA 2-letter marketing carrier codes to include (whitelist). Example: [\"AF\",\"KL\"]. ALWAYS convert airline names to codes yourself (Air France → AF, Delta → DL); a name like \"Delta\" fails validation. A brand that operates several marketing carriers needs every code listed (easyJet → U2, EC, DS). Use when the user says \"Air France only\", \"fly Delta\", etc. Must not overlap exclude_carriers. Matching means EVERY segment is marketed by a listed carrier (codeshares count by marketing carrier). If nothing matches, the search is automatically widened to all carriers: include_carriers then comes back in unapplied_filters with the reason, include_carriers_widened is true, and itineraries that contain a segment on a listed carrier come first. Tell the user the carrier had no matching itinerary (or cannot be sold here) and that other carriers are shown."
+              },
+              "exclude_carriers": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Z0-9]{2}$"
+                },
+                "description": "IATA 2-letter marketing carrier codes to exclude (blacklist). Example: [\"FR\",\"U2\"]. ALWAYS convert airline names to codes yourself (Ryanair → FR, Frontier → F9); a name like \"Ryanair\" fails validation. A brand that operates several marketing carriers needs every code listed (\"no Wizz Air\" → W6, W9). Use when the user says \"no Ryanair\", \"avoid budget airlines\", etc. Must not overlap include_carriers."
+              },
+              "single_carrier_only": {
+                "type": "boolean",
+                "description": "Keep only itineraries marketed by ONE carrier end to end. Use when the user says \"same airline the whole way\" or wants to avoid split-carrier connections."
+              },
+              "departure_time_range": {
+                "type": "object",
+                "properties": {
+                  "earliest": {
+                    "type": "string",
+                    "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                    "description": "Inclusive earliest local time-of-day (HH:MM, 24-hour)."
+                  },
+                  "latest": {
+                    "type": "string",
+                    "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                    "description": "Inclusive latest local time-of-day (HH:MM, 24-hour)."
+                  }
+                },
+                "additionalProperties": false,
+                "description": "Filter the OUTBOUND leg by local departure time-of-day. Example: { \"earliest\": \"08:00\", \"latest\": \"12:00\" }. Use when the user says \"morning flight\", \"leave after 6pm\"."
+              },
+              "arrival_time_range": {
+                "type": "object",
+                "properties": {
+                  "earliest": {
+                    "type": "string",
+                    "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                    "description": "Inclusive earliest local time-of-day (HH:MM, 24-hour)."
+                  },
+                  "latest": {
+                    "type": "string",
+                    "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                    "description": "Inclusive latest local time-of-day (HH:MM, 24-hour)."
+                  }
+                },
+                "additionalProperties": false,
+                "description": "Filter the OUTBOUND leg by local arrival time-of-day. Example: { \"latest\": \"20:00\" }. Use when the user says \"arrive before dinner\", \"land by noon\"."
+              },
+              "return_departure_time_range": {
+                "type": "object",
+                "properties": {
+                  "earliest": {
+                    "type": "string",
+                    "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                    "description": "Inclusive earliest local time-of-day (HH:MM, 24-hour)."
+                  },
+                  "latest": {
+                    "type": "string",
+                    "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                    "description": "Inclusive latest local time-of-day (HH:MM, 24-hour)."
+                  }
+                },
+                "additionalProperties": false,
+                "description": "Round-trip only. Filter the RETURN leg by local departure time-of-day."
+              },
+              "return_arrival_time_range": {
+                "type": "object",
+                "properties": {
+                  "earliest": {
+                    "type": "string",
+                    "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                    "description": "Inclusive earliest local time-of-day (HH:MM, 24-hour)."
+                  },
+                  "latest": {
+                    "type": "string",
+                    "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                    "description": "Inclusive latest local time-of-day (HH:MM, 24-hour)."
+                  }
+                },
+                "additionalProperties": false,
+                "description": "Round-trip only. Filter the RETURN leg by local arrival time-of-day."
+              },
+              "connection_time_min_minutes": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Minimum layover length, in minutes, for EVERY connection of EVERY leg. Use when the user wants a comfortable connection (\"at least 90 minutes to change planes\"). Must not exceed connection_time_max_minutes."
+              },
+              "connection_time_max_minutes": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Maximum layover length, in minutes, for EVERY connection of EVERY leg. Use when the user says \"no long layovers\" (\"under 3 hours\" → 180)."
+              },
+              "max_total_duration_minutes": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "description": "Cap on EACH leg's total elapsed travel time, in minutes (gate to gate, layovers included). Use when the user says \"nothing longer than 12 hours\" → 720."
+              },
+              "refundable_only": {
+                "type": "boolean",
+                "description": "Keep only fares that can be cancelled before departure (with or without a fee). Narrowing and conservative: fares whose rules cannot be verified are dropped, so some carriers disappear entirely. Each returned fare echoes the resolved `refundable` flag."
+              },
+              "changeable_only": {
+                "type": "boolean",
+                "description": "Keep only fares that allow a voluntary change (with or without a fee). Same conservative behavior as refundable_only. Each returned fare echoes the resolved `changeable` flag."
+              },
+              "checked_bag_included": {
+                "type": "boolean",
+                "description": "Keep only fares whose price already includes a checked bag. Use when the user says \"with a bag included\", \"I need to check luggage\"."
+              },
+              "via_airports": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Z]{3}$"
+                },
+                "description": "Restrict connections to these IATA airport codes. Nonstop itineraries still pass. Example: [\"CDG\",\"AMS\"]. At most 9 airports are honoured per leg (provider limit); a longer list comes back in unapplied_filters. Must not overlap exclude_via_airports."
+              },
+              "exclude_via_airports": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Z]{3}$"
+                },
+                "description": "Ban connections at these IATA airport codes. Example: [\"LHR\"] when the user says \"anything but Heathrow\". Lists longer than 9 are still fully enforced. Must not overlap via_airports."
+              },
+              "aircraft_types": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Z0-9]{3}$"
+                },
+                "description": "Restrict every segment to these IATA aircraft equipment codes. Example: [\"320\",\"321\"]. Use only when the user names equipment; most users do not."
+              },
+              "origin_alternate_airports": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Z]{3}$"
+                },
+                "description": "ADDITIONAL departure airports searched ALONGSIDE `origin`, e.g. [\"EWR\",\"LGA\"] with `origin: \"JFK\"`. WIDENING ONLY — the anchor in `origin` is always searched. THE ANCHOR RANKS AND TRUNCATES the result set, so put the airport that matters most to the user in `origin`, not in this list: on one measured route, anchor JFK + alternate EWR came back 15 JFK / 35 EWR, while anchor EWR + alternate JFK came back 2 JFK / 48 EWR. TAKES EFFECT ONLY WITH AN AIRPORT ANCHOR — a city anchor (`origin_type: \"city\"`, or an `origin` that resolves to a city) already stands for its own airports, so the search still runs and returns results, this list is IGNORED, and it comes back in `unapplied_filters`. Not an error: read `unapplied_filters` and tell the user the list was not applied. On a round trip the whole side is mirrored, so these airports also apply to where the RETURN lands. Applied or not, the report names the SIDE — `origin` — never this field. Sabre honours the list; TravelFusion cannot (one station per leg) and reports it unapplied."
+              },
+              "destination_alternate_airports": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Z]{3}$"
+                },
+                "description": "ADDITIONAL arrival airports searched ALONGSIDE `destination`, e.g. [\"EWR\",\"LGA\"] with `destination: \"JFK\"`. WIDENING ONLY — the anchor in `destination` is always searched. THE ANCHOR RANKS AND TRUNCATES the result set, so put the airport that matters most to the user in `destination`, not in this list: on one measured route, anchor JFK + alternate EWR came back 15 JFK / 35 EWR, while anchor EWR + alternate JFK came back 2 JFK / 48 EWR. TAKES EFFECT ONLY WITH AN AIRPORT ANCHOR — a city anchor (`destination_type: \"city\"`, or a `destination` that resolves to a city) already stands for its own airports, so the search still runs and returns results, this list is IGNORED, and it comes back in `unapplied_filters`. Not an error: read `unapplied_filters` and tell the user the list was not applied. On a round trip the whole side is mirrored, so these airports also apply to where the RETURN departs from. Applied or not, the report names the SIDE — `destination` — never this field. Sabre honours the list; TravelFusion cannot (one station per leg) and reports it unapplied."
+              },
+              "nearby_airports": {
+                "type": "boolean",
+                "description": "Ask the providers to also search alternate airports around each leg's origin and destination. WIDENS the search. Use when the user says \"or any nearby airport\"."
+              },
+              "same_connection_airport_only": {
+                "type": "boolean",
+                "description": "Keep only itineraries whose connections arrive at and depart from the SAME airport (no cross-town airport change)."
+              },
+              "same_origin_airport_only": {
+                "type": "boolean",
+                "description": "Round trips only: keep itineraries that return to the departure airport."
+              },
+              "same_turnaround_airport_only": {
+                "type": "boolean",
+                "description": "Round trips only: keep itineraries whose return departs from the airport the outbound arrived at."
+              }
+            },
+            "additionalProperties": false,
+            "description": "Live flight search by route and dates. Use city codes by default (PAR, NYC); use airport codes (CDG, JFK) only when the user specifies a particular airport. Takes ONE anchor departure_date (+ return_date for a round trip) — no date ranges and no date arrays. Any date flexibility (\"give or take a day\", open windows, an ask with no anchor date at all, or a range implying several candidate departure/return pairs) goes to flight_calendar instead."
+          },
+          "price_check": {
+            "type": "object",
+            "properties": {
+              "offer_token": {
+                "type": "string",
+                "minLength": 1,
+                "description": "offer_token from flight_calendar, find_destination, or flight_calendar results."
+              }
+            },
+            "required": [
+              "offer_token"
+            ],
+            "additionalProperties": false,
+            "description": "Get live pricing for a specific flight deal. Returns confirmed fares with trip_item_token for booking. Accepts no search filters — the cached offer already has a concrete route, cabin, carrier, and price."
+          },
+          "passengers": {
+            "type": "object",
+            "properties": {
+              "adults": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9,
+                "default": 1,
+                "description": "Adult travelers (12+)"
+              },
+              "children": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 8,
+                "default": 0,
+                "description": "Child travelers (2-11)"
+              },
+              "infants": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4,
+                "default": 0,
+                "description": "Infant travelers (under 2), traveling on an adult's lap. Seated infants (own seat) are not supported."
+              }
+            },
+            "additionalProperties": false,
+            "default": {},
+            "description": "Passenger counts. Defaults to 1 adult."
+          },
+          "currency": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 3,
+            "description": "ISO 4217 currency code. Defaults to \"USD\"."
+          },
+          "locale": {
+            "type": "string",
+            "description": "BCP 47 locale. Defaults to \"en-US\"."
+          },
+          "user_intent": {
+            "type": "string",
+            "description": "The end user's current request in their own words, e.g. \"help me with my travel plans\". Pass it as-is when short; otherwise condense the goal and constraints into 1-2 sentences. Strip personal identifiers (names, emails, phone numbers, addresses, payment details) — replace them with placeholders like \"[name]\". Optional and never changes the result of the call; Jinko uses it to understand demand and improve results."
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "hotel_search",
+      "title": "hotel_search",
+      "description": "Search live hotel inventory and rates.\n\nREQUIRED:\n- destination: object — two distinct modes. Mode A (rate lookup): { hotel_name (+ optional country_code, city_name) } or { hotel_ids }. Mode B (hotel search): { query }, { city_name + country_code }, { latitude + longitude (+ radius_km) }, or { place_id }.\n- checkin, checkout: YYYY-MM-DD\n- occupancy: either { occupancies: [{ adults, children_ages? }, ...] } (one entry per room) OR shorthand { adults, children?, rooms? }\n\nTWO MODES — pick deliberately:\n\nMODE A (rate lookup — the user named a specific hotel):\n- { hotel_name }: free-text hotel name (\"Hotel Calimala\", \"The St. Regis Rome\", \"Hôtel Costes\"). Server fuzzy-matches against a 1.74M-hotel catalog. ALWAYS pair with country_code AND city_name when known — lookup precision drops sharply on common names without scope. Returns 422 HOTEL_NAME_LOW_CONFIDENCE if no candidate scores ≥ 0.7; see \"ERROR HANDLING\" below.\n- { hotel_ids }: re-shop a known set (from a prior search result).\nIn Mode A: property filters and max_results are ignored (user named the property), but filters.max_budget_per_night still applies. The response includes nearby_alternatives — up to 40 hotels within ~3km of the matched property, in the same response shape so the user can compare.\n\nMODE B (hotel search — the user is exploring a destination):\n- { query }: unambiguous cities or well-known POIs only (\"Paris\", \"Times Square\"). Provider AI search returns 0 for islands (\"Menorca\", \"Santorini\", \"Mykonos\"), regions (\"Tuscany\", \"Provence\", \"Bavaria\"), countries, archipelagos. Do NOT use { query } for those.\n- { city_name + country_code }: when the user named a city, even if ambiguous. Best when the destination has a primary city (\"Mahón, ES\" for Menorca; \"Florence, IT\" for Tuscany). Spell the city as an English-language booking site would — \"Munich\"/\"Florence\"/\"Rome\"/\"Vienna\", NOT \"München\"/\"Firenze\"/\"Roma\"/\"Wien\" — but keep the local form where that IS the international one (\"Regensburg\", \"Nürnberg\", \"Lyon\"), and never an archaic exonym (\"Leghorn\", \"Ratisbon\"). When the user wrote the city in another language, translate it for this field only; keep their spelling when you talk back to them.\n- { latitude + longitude + radius_km }: when the destination is an area, island, or region with no obvious primary city. radius_km up to 50.\n- { place_id }: when you already have an upstream Place ID.\nIf the user names something non-city (an island, region, archipelago, neighborhood), DO NOT pass it as { query } — pick { city_name+country_code } or { latitude+longitude+radius_km }.\n\nERROR HANDLING — 422 HOTEL_NAME_LOW_CONFIDENCE (Mode A only):\nWhen { hotel_name } fuzzy lookup finds no candidate ≥ 0.7, the response body is:\n  { \"error\": { \"code\": \"HOTEL_NAME_LOW_CONFIDENCE\", \"message\": \"...\", \"top_candidates\": [{hotel_id, name, city, score}], \"suggested_retry\": { \"destination\": {...} } } }\nThis is ACTIONABLE, not fatal. Pick one:\n  1. Top candidate matches what the user meant (typo/spelling) → confirm with the user, then retry with { hotel_ids: [\"<top.hotel_id>\"] }.\n  2. None of the candidates fit → ask the user \"I couldn't pin down 'X' — want me to search all hotels in <city> instead?\" then retry with suggested_retry.destination.\n  3. User likely meant a different city → ask to clarify, then retry hotel_name with corrected country_code/city_name.\nDon't silently auto-pick a low-confidence candidate — booking the wrong hotel is worse than asking one clarifying question.\n\nERROR HANDLING — 422 DESTINATION_LOW_CONFIDENCE (Mode B city_name+country_code only):\nWhen the city has no exact catalog group but close trigram candidates exist, top_candidates are CITIES ({city, country_code, hotel_count, score}), not hotels: confirm an obvious typo and retry with that candidate's city_name + country_code (it resolves exactly), ask the user when several fit, and never report the city has no hotels.\n\ndestination_resolution comes back on every successful search and says HOW the destination resolved (exact / fuzzy / provider_matched / fallback_string); the text summary's opening \"Searched: …\" line, when present, means the match was fuzzy, fell back to a literal string, or resolved to a different city than requested.\n\nSANITY-CHECK THE CITY GROUP (Mode B city_name — an \"exact\" match can still be the wrong group):\ndestination_resolution.catalog_hotel_count is how many properties the matched city group holds. A count in the single or low double digits for a city you would expect to be large does NOT mean the city is small — it means you matched a near-empty duplicate group. \"Roma\" holds 3 properties where \"Rome\" holds 20,706; \"Firenze\" holds 1 where \"Florence\" holds 6,986; \"Wien\" holds 7 where \"Vienna\" holds 4,580. Treat it as a DESTINATION problem: retry with the English-booking-site spelling, or with { latitude + longitude + radius_km }.\nThis overrides empty_reason. \"no_availability_for_dates\" is computed against the matched group alone, so a wrong-spelling match reports a sold-out city that actually has thousands of rooms — never tell the user a city is full, or that only N hotels exist there, on the strength of a small group.\n\nOPTIONAL:\n- currency (ISO 4217), guest_nationality (ISO 3166-1 alpha-2)\n- filters: { min_rating, min_star_rating, max_star_rating, min_reviews, hotel_type_ids, chain_ids, facility_ids, max_results, max_budget_per_night }\n- filters.max_budget_per_night: per-night per-room price cap (request currency) for \"under $150/night\" asks. Hotels whose CHEAPEST rate fits are kept with ALL their rates; the search scans deeper automatically when few fit. Also applies in Mode A. Prefer it over post-filtering results yourself.\n\nEXAMPLES:\n1. Free-text city search:\n   { \"destination\": { \"query\": \"Paris\" }, \"checkin\": \"2026-07-15\", \"checkout\": \"2026-07-18\", \"adults\": 2 }\n\n2. Two-room family with kids:\n   { \"destination\": { \"city_name\": \"Barcelona\", \"country_code\": \"es\" }, \"checkin\": \"2026-08-01\", \"checkout\": \"2026-08-05\",\n     \"occupancies\": [{ \"adults\": 2 }, { \"adults\": 1, \"children_ages\": [5, 7] }] }\n\n3. Island/region (use lat-lng + radius, NOT query):\n   { \"destination\": { \"latitude\": 39.9496, \"longitude\": 4.1102, \"radius_km\": 30 }, \"checkin\": \"2026-08-31\", \"checkout\": \"2026-09-09\", \"adults\": 1 }\n\n4. Geo-radius search around a POI:\n   { \"destination\": { \"latitude\": 41.4036, \"longitude\": 2.1744, \"radius_km\": 3 }, \"checkin\": \"2026-09-10\", \"checkout\": \"2026-09-12\", \"adults\": 2 }\n\n5. Mode A — user named a specific hotel:\n   { \"destination\": { \"hotel_name\": \"Hotel Calimala\", \"country_code\": \"it\", \"city_name\": \"Florence\" }, \"checkin\": \"2026-07-15\", \"checkout\": \"2026-07-18\", \"adults\": 2, \"currency\": \"EUR\" }\n\nRESPONSE:\n- The text result is a summary, not JSON: hotels shown (with the total available when known), the price range and refundable split, then each hotel's stars, rating, cheapest price and hotel_id, and one line per rate ending in trip_item_token=<htl_* token>, with that rate's price, board and refund terms on the same line. Every rate token is listed.\n- structuredContent carries the full payload: each hotel with basic metadata (name, address, star_rating, rating, main_photo) and a rooms[] list; each room has a rates[] list, and each rate has an offer_id (the same htl_* token), board type, refund policy, cancellation schedule, taxes, and total_amount + currency.\n\nNEXT STEP: Use the trip tool with add_item and the htl_* token of the rate the user picks (trip_item_token in the summary, offer_id in structuredContent). Hotel items work alongside flight items in the same cart.\n\nFlow: hotel_search → trip(add_item) → trip(upsert_travelers) → checkout\n\nPRICES: rate prices, in the summary and in structuredContent, are totals for the stay.\n\n**Cost: 10 credits per call.**",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "destination": {
+            "type": "object",
+            "properties": {
+              "query": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "description": "Free-text destination — use ONLY for unambiguous cities or well-known POIs (e.g. \"Paris\", \"Times Square\"). Provider-side AI search reliably returns 0 results for islands (\"Menorca\", \"Santorini\"), regions (\"Tuscany\", \"Provence\"), countries, archipelagos, and other non-city geographies. For those: prefer { city_name + country_code } when a primary city is implied (e.g. \"Mahón, ES\" for Menorca), or { latitude + longitude + radius_km } to cover an area. Max 200 chars."
+              },
+              "city_name": {
+                "type": "string",
+                "minLength": 1,
+                "description": "City name (e.g. \"Paris\"). Spell it the way an English-language booking site would: \"Munich\" not \"München\", \"Florence\" not \"Firenze\", \"Rome\" not \"Roma\", \"Vienna\" not \"Wien\". Keep the local form where that IS the international one (\"Regensburg\", \"Livorno\", \"Nürnberg\", \"Lyon\"), and never an archaic exonym (\"Leghorn\", \"Ratisbon\"). The catalog stores one group per spelling and does not fold translations, so the wrong form usually resolves to a near-empty group instead of failing — see destination_resolution.catalog_hotel_count. Case, accents and hyphens ARE folded (\"Mahon\" = \"Mahón\", \"Saint Malo\" = \"Saint-Malo\"), so those need no correction. In Mode B: pair with country_code as the destination. In Mode A (with hotel_name): pair with hotel_name to narrow the fuzzy-lookup scope."
+              },
+              "country_code": {
+                "type": "string",
+                "minLength": 2,
+                "maxLength": 2,
+                "description": "ISO 3166-1 alpha-2 country code (lowercase preferred, e.g. \"fr\"). Must be paired with city_name OR hotel_name. In Mode B it disambiguates the city; in Mode A it narrows the fuzzy lookup."
+              },
+              "latitude": {
+                "type": "number",
+                "minimum": -90,
+                "maximum": 90,
+                "description": "Latitude for geo-radius search. Pair with longitude."
+              },
+              "longitude": {
+                "type": "number",
+                "minimum": -180,
+                "maximum": 180,
+                "description": "Longitude for geo-radius search. Pair with latitude."
+              },
+              "radius_km": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 50,
+                "description": "Geo-radius in km (default 5, max 50). Requires latitude+longitude — ignored with other destination shapes."
+              },
+              "place_id": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Google Places ID or upstream place identifier."
+              },
+              "hotel_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "minItems": 1,
+                "description": "Mode A — re-shop a known set of hotel IDs (skips destination resolution)."
+              },
+              "hotel_name": {
+                "type": "string",
+                "minLength": 2,
+                "maxLength": 120,
+                "description": "Mode A — free-text hotel name when the user named a specific property they want to book (e.g. \"Hotel Calimala\", \"The St. Regis Rome\", \"Hôtel Costes\"). Server runs a fuzzy trigram match over the 1.74M-hotel catalog; uses the top hit when its confidence is ≥ 0.7 (auto-pick safe). If no candidate clears that threshold, returns HTTP 422 with error.code = HOTEL_NAME_LOW_CONFIDENCE + top_candidates + suggested_retry — the agent should confirm a candidate with the user or fall back to the suggested city destination. ALWAYS pair with country_code and city_name when known; lookup precision drops sharply on common names without scope."
+              }
+            },
+            "additionalProperties": false,
+            "description": "Destination — provide exactly one shape. Two distinct modes:\n\nMODE A (rate lookup — you know which hotel):\n  • { hotel_ids } to re-shop a known set.\n  • { hotel_name, country_code?, city_name? } when the user named a specific property. Server resolves via fuzzy lookup; returns 422 HOTEL_NAME_LOW_CONFIDENCE if no candidate scores ≥ 0.7.\n\nMODE B (hotel search — you're exploring):\n  • { query } for unambiguous cities/POIs only (\"Paris\", \"Times Square\"). Provider AI search returns 0 for islands/regions/countries/archipelagos.\n  • { city_name + country_code } for ambiguous city names or when the user named a primary city (\"Mahón, ES\" for Menorca).\n  • { latitude + longitude + radius_km } for islands, regions, neighborhoods — anywhere { query } returns 0.\n  • { place_id } when you already have an upstream Place ID.\n\nIn Mode A, property filters (min_rating / star / facility / chain / hotel_type) and max_results are ignored — the user already named the property. filters.max_budget_per_night still applies with hotel_ids or hotel_name."
+          },
+          "checkin": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "description": "Check-in date (YYYY-MM-DD)."
+          },
+          "checkout": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "description": "Check-out date (YYYY-MM-DD)."
+          },
+          "occupancies": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "adults": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 8,
+                  "description": "Adult travelers in this room (12+)."
+                },
+                "children_ages": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 17
+                  },
+                  "maxItems": 6,
+                  "description": "Ages of children in this room (0-17). Required for child pricing."
+                }
+              },
+              "required": [
+                "adults"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 1,
+            "maxItems": 8,
+            "description": "One entry per room (structured). PREFERRED whenever the party is larger than 2 adults or has children — it removes ambiguity about how guests are split across rooms. Example: [{ \"adults\": 2 }, { \"adults\": 1, \"children_ages\": [5] }]. Do NOT combine with the shorthand fields (adults/children/rooms) — use one or the other."
+          },
+          "adults": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 16,
+            "description": "Shorthand: total adults across all rooms. Use ONLY when there is no ambiguity (1 or 2 adults = single room). For 3+ adults, or odd splits, ask the user how they want to split rooms and pass occupancies[] instead — e.g. 4 adults → [{adults:2},{adults:2}] (double + double) vs a single 4-sleeper is a meaningfully different search. If the user does not clarify, the server defaults to 2-adults-per-room (remainder in the last room), so every 4-adult request becomes two double rooms. Do NOT combine with occupancies[] — use one or the other."
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 17
+            },
+            "maxItems": 8,
+            "description": "Shorthand: ages of all children across all rooms. If children are present, prefer occupancies[] so the caller controls which room each child goes in (ages affect pricing and some providers reject invalid age/room combinations)."
+          },
+          "rooms": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8,
+            "description": "Shorthand: number of rooms (the platform auto-distributes adults + children). Use when the user named a room count but not the per-room split."
+          },
+          "currency": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 3,
+            "description": "ISO 4217 currency code (e.g. \"EUR\", \"USD\", \"GBP\", \"JPY\"). ALWAYS set this — omitting it falls back to USD which is rarely what users actually want. Infer from the strongest signal available: (1) the user's explicit ask (\"show me prices in pounds\"), (2) the conversation language/locale (French → EUR, Japanese → JPY, German → EUR, Spanish/Catalan/Italian/Portuguese → EUR, English UK → GBP, English US → USD), (3) the destination country (Italy/France/Germany → EUR, UK → GBP, Japan → JPY, US → USD). When in doubt between two plausible currencies, prefer the one matching the user's likely home country."
+          },
+          "guest_nationality": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 2,
+            "description": "Guest nationality (ISO 3166-1 alpha-2, uppercase, e.g. \"FR\"). Affects rate availability + tax handling at search time. Separate from traveler nationality used for booking documents."
+          },
+          "filters": {
+            "type": "object",
+            "properties": {
+              "min_rating": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 10,
+                "description": "Minimum guest review rating (0-10 scale)."
+              },
+              "min_star_rating": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5,
+                "description": "Minimum star rating (1-5). Pair with max_star_rating to bound a range."
+              },
+              "max_star_rating": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5,
+                "description": "Maximum star rating (1-5). Pair with min_star_rating to bound a range."
+              },
+              "min_reviews": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Minimum number of guest reviews."
+              },
+              "hotel_type_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "description": "Filter by hotel type IDs (e.g. boutique, resort)."
+              },
+              "chain_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "description": "Filter by hotel chain. Each entry is a brand slug (e.g. \"accor\", \"hilton\") OR a numeric LiteAPI chain_id. Slugs are expanded to all sub-brands (e.g. \"accor\" → Accor, ibis, Novotel, Mercure, Pullman, Sofitel, …). Unknown brands are ignored (the search still runs)."
+              },
+              "facility_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "description": "Filter by facility IDs (e.g. pool, gym, spa). Applied at platform search time, not post-filtered."
+              },
+              "max_results": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 200,
+                "description": "Maximum number of hotels to return per page (default 50)."
+              },
+              "offset": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Pagination offset — skip this many hotels at the upstream search (default 0)."
+              },
+              "max_budget_per_night": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "description": "Keep only hotels whose CHEAPEST per-night price (per room, in the request currency) fits this budget; qualifying hotels keep all their rates. The search automatically scans deeper into the catalog when too few hotels fit. Also applies in Mode A (rate lookup). Prefer a larger max_results over offset paging when set."
+              }
+            },
+            "additionalProperties": false,
+            "description": "Optional filter overrides applied on top of the tenant default filter set."
+          },
+          "trip_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Existing trip_id to associate this search with. Used only by the Jinko cart widget. The platform accepts the field for schema consistency but ignores it on surfaces without the widget. Forward whenever the user is mid-trip-build (you have seen a trip_id in a recent trip(...) tool result and the user has NOT pivoted to a different trip context, e.g. a new origin OR destination city or unrelated request). Drop on pivot. Echoed back in the result so the cart widget can append the next selection to the same trip."
+          },
+          "user_intent": {
+            "type": "string",
+            "description": "The end user's current request in their own words, e.g. \"help me with my travel plans\". Pass it as-is when short; otherwise condense the goal and constraints into 1-2 sentences. Strip personal identifiers (names, emails, phone numbers, addresses, payment details) — replace them with placeholders like \"[name]\". Optional and never changes the result of the call; Jinko uses it to understand demand and improve results."
+          }
+        },
+        "required": [
+          "destination",
+          "checkin",
+          "checkout"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "hotel_details",
+      "title": "hotel_details",
+      "description": "Fetch rich metadata (gallery, facilities, policies, per-room metadata) for a single hotel.\n\nUse this AFTER hotel_search returns a list of hotels and the user wants a closer look at one. Pass the hotel_id from a hotel_search result.\n\nREQUIRED:\n- hotel_id: string (from a hotel_search offer)\n\nOPTIONAL:\n- checkin, checkout (YYYY-MM-DD): accepted for cache-key alignment; currently ignored by the platform.\n\nRESPONSE:\n- hotel: { id, name, star_rating, address, images[], facilities[], policies[] }\n- rooms[]: per-room metadata, each with name + description (when available)\n\nNotes:\n- Read-only. Does not affect the cart or quote.\n- Independent of pricing — call hotel_search first to get live rates with offer tokens.\n\n**Cost: 1 credit per call.**",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "hotel_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Hotel ID (from a prior hotel_search offer)."
+          },
+          "checkin": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "description": "Check-in date (YYYY-MM-DD). Accepted for future cache-key alignment; currently unused by the platform."
+          },
+          "checkout": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "description": "Check-out date (YYYY-MM-DD). Accepted for future cache-key alignment; currently unused by the platform."
+          },
+          "user_intent": {
+            "type": "string",
+            "description": "The end user's current request in their own words, e.g. \"help me with my travel plans\". Pass it as-is when short; otherwise condense the goal and constraints into 1-2 sentences. Strip personal identifiers (names, emails, phone numbers, addresses, payment details) — replace them with placeholders like \"[name]\". Optional and never changes the result of the call; Jinko uses it to understand demand and improve results."
+          }
+        },
+        "required": [
+          "hotel_id"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "trip",
+      "title": "trip",
+      "description": "Create and manage a trip: add flight, hotel, car, or enabled ground items, remove items, set traveler details, and select ancillaries.\n\nOperations:\n- add_item: Add a flight, hotel, car, or enabled ground item to the trip. Pass trip_item_token from flight_search (offer__* tokens), offer_id from hotel_search (htl_* tokens) or car_search, or the connection's trip_item_token from find_ground where enabled. Omit trip_id to create a new trip. MULTI-ROOM HOTEL: to book several rooms of the SAME hotel and stay as ONE booking with ONE reference, make ONE add_item call with rooms: [{trip_item_token: \"htl_...\"}, ...] (2–8 entries, one htl_* rate token per room, mutually exclusive with trip_item_token; HotelBeds-inventory tenants only) — do NOT add the same hotel twice as separate items.\n- remove_item: Remove an existing item from the trip by item_id (from trip response items[].item_id). Requires an existing trip_id. Can be combined with add_item in a single call to swap an item — remove runs first, then add.\n- upsert_travelers: Set traveler details and contact info on an existing trip_id.\n- select_ancillaries: Select bags, seats, meals for a quoted trip item. Requires trip_id and item_id.\n\nReturns trip_id for use with the checkout tool. Flights, hotels, cars, and ground items where enabled can coexist in the same trip (single Stripe checkout).\n\nIMPORTANT — TRAVELER DATA:\nNEVER invent or fabricate traveler data. Before calling upsert_travelers, you MUST ask the user for the required fields:\n- Always: first_name, last_name, passenger_type\n- Flights only: date_of_birth (YYYY-MM-DD), gender (MALE/FEMALE) — required when the trip contains a flight, optional for hotel-only trips\n- Contact: email, phone (with country code)\nIf a required field is missing, ASK the user. Do not use placeholder or default values.\n\nANCILLARY FLOW:\nAfter adding an item and setting travelers, check trip response for available_ancillaries on trip items.\nIf ancillaries are available, offer them to the user before proceeding to checkout.\nUse select_ancillaries with the offer_ids from available_ancillaries. Full replacement semantics — send all desired selections.\n\nFlows:\n- Flights: flight_calendar → flight_search → trip(add_item) → trip(upsert_travelers) → [trip(select_ancillaries)] → checkout\n- Hotels: hotel_search → trip(add_item) → trip(upsert_travelers) → checkout\n- Cars: car_search → trip(add_item) → trip(upsert_travelers) → checkout\n- Ground (where enabled): find_ground → trip(add_item) → trip(upsert_travelers) → checkout\n- Mixed: supported item kinds in the same trip, one cart, one checkout\n\n**Cost: 1 credit per call.**",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "trip_id": {
+            "type": "string",
+            "description": "Existing trip ID returned by trip or get_trip. Pass it back exactly as returned; omit it to create a new trip."
+          },
+          "add_item": {
+            "type": "object",
+            "properties": {
+              "trip_item_token": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Token identifying the thing to add. One of: flight_search -> trip_item_token (offer__* format); hotel_search -> offer_id (htl_* format); car_search -> offer_id; find_ground (where enabled) -> the connection's trip_item_token, copied VERBATIM including its trailing \"-<number>\" (e.g. \"EURS-GBLONLIB-FRPARPGN-2026-09-15T06:01-2026-09-15T09:29-0\"). For ground, do NOT pass fares[].offer_id — it is rejected as Bad Request. Mutually exclusive with rooms — provide exactly one of the two."
+              },
+              "rooms": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "trip_item_token": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Hotel rate token (htl_*) from hotel_search for THIS room. All rooms must come from the same hotel and the same stay (same check-in/check-out dates)."
+                    }
+                  },
+                  "required": [
+                    "trip_item_token"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "MULTI-ROOM HOTEL ONLY: book 2–8 rooms of the SAME hotel and SAME stay as ONE booking with ONE reference. One entry per room, each with its own htl_* rate token from hotel_search (e.g. one rate per occupancy). Mutually exclusive with trip_item_token; for a single room use trip_item_token instead. Currently supported for HotelBeds-inventory tenants only."
+              },
+              "fare_class": {
+                "type": "string",
+                "minLength": 1,
+                "description": "GROUND ONLY. Which fare of the connection to book. Accepts EITHER the carrier fare name from find_ground results fares[].fare_name (e.g. \"PREMIER\") OR the fare class from fares[].fare_class (e.g. \"FARE-32\") — both identify the same fare, matching is case-insensitive. Omit to book the CHEAPEST fare, the \"from\" price shown in search. A fare the connection does not offer is rejected and the bookable ones are listed, never silently downgraded. Ignored for flights and hotels."
+              }
+            },
+            "additionalProperties": false,
+            "description": "Add a flight, hotel, car, or enabled ground item to the trip. For MULTIPLE ROOMS of the same hotel stay, make ONE add_item call with the rooms array (2–8 htl_* tokens) — do NOT add the same hotel twice as separate items."
+          },
+          "remove_item": {
+            "type": "object",
+            "properties": {
+              "item_id": {
+                "type": "string",
+                "minLength": 1,
+                "description": "ID of the trip item to remove. Matches the value returned in the trip response items[].item_id field."
+              }
+            },
+            "required": [
+              "item_id"
+            ],
+            "additionalProperties": false,
+            "description": "Remove an existing item from the trip. Requires an existing trip_id — you cannot remove from a trip that has not been created yet. Can be combined with add_item in a single call to swap an item (remove runs first, then add)."
+          },
+          "upsert_travelers": {
+            "type": "object",
+            "properties": {
+              "travelers": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "first_name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "First name as on travel document"
+                    },
+                    "last_name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Last name as on travel document"
+                    },
+                    "date_of_birth": {
+                      "type": "string",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                      "description": "Date of birth (YYYY-MM-DD). Required for flights; optional for hotel-only trips."
+                    },
+                    "gender": {
+                      "type": "string",
+                      "enum": [
+                        "MALE",
+                        "FEMALE"
+                      ],
+                      "description": "Gender as on travel document. Required for flights; optional for hotel-only trips."
+                    },
+                    "passenger_type": {
+                      "type": "string",
+                      "enum": [
+                        "ADULT",
+                        "CHILD",
+                        "INFANT"
+                      ],
+                      "description": "ADULT (12+), CHILD (2-11), INFANT (under 2)"
+                    },
+                    "nationality": {
+                      "type": "string",
+                      "minLength": 2,
+                      "maxLength": 2,
+                      "description": "ISO 3166-1 alpha-2 country code"
+                    },
+                    "passport_number": {
+                      "type": "string",
+                      "description": "Passport number"
+                    },
+                    "passport_expiry": {
+                      "type": "string",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                      "description": "Passport expiry date (YYYY-MM-DD)"
+                    },
+                    "passport_country": {
+                      "type": "string",
+                      "minLength": 2,
+                      "maxLength": 2,
+                      "description": "Passport issuing country (ISO 3166-1 alpha-2)"
+                    },
+                    "frequent_flyer": {
+                      "type": "object",
+                      "properties": {
+                        "airline": {
+                          "type": "string"
+                        },
+                        "number": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "airline",
+                        "number"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Frequent-flyer / loyalty membership. airline = IATA carrier that issued the membership (e.g. LH); number = membership number."
+                    },
+                    "known_traveler_number": {
+                      "type": "string",
+                      "description": "US trusted-traveler Known Traveler Number (TSA PreCheck / Global Entry). Flights only; sent to the airline as Secure Flight data so PreCheck prints on the boarding pass."
+                    },
+                    "known_traveler_issuing_country": {
+                      "type": "string",
+                      "minLength": 2,
+                      "maxLength": 2,
+                      "description": "ISO 3166-1 alpha-2 country that issued the Known Traveler Number. Defaults to US downstream; ignored without known_traveler_number."
+                    },
+                    "redress_number": {
+                      "type": "string",
+                      "description": "DHS redress control number (TRIP program). Flights only."
+                    },
+                    "redress_issuing_country": {
+                      "type": "string",
+                      "minLength": 2,
+                      "maxLength": 2,
+                      "description": "ISO 3166-1 alpha-2 country that issued the redress number. Defaults to US downstream; ignored without redress_number."
+                    }
+                  },
+                  "required": [
+                    "first_name",
+                    "last_name",
+                    "passenger_type"
+                  ],
+                  "additionalProperties": false
+                },
+                "minItems": 1,
+                "maxItems": 9,
+                "description": "List of travelers (replaces all). Required to complete a booking; the first traveler also supplies the booking contact name."
+              },
+              "contact": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Contact email for booking confirmation"
+                  },
+                  "phone": {
+                    "type": "string",
+                    "description": "Contact phone with country code. Required. The platform rejects bookings without it."
+                  },
+                  "title": {
+                    "type": "string",
+                    "description": "Honorific of the person paying (e.g. \"mr\", \"ms\", \"mx\"). Required by some rail carriers, and by EVERY car rental — Auto Europe refuses a booking without one. Matched against the provider's own title vocabulary, so an unusual value may not resolve."
+                  },
+                  "street_and_number": {
+                    "type": "string",
+                    "description": "Billing street and number. Required by some rail/coach carriers."
+                  },
+                  "city": {
+                    "type": "string",
+                    "description": "Billing city. Required by some rail/coach carriers."
+                  },
+                  "zip_code": {
+                    "type": "string",
+                    "description": "Billing postal code. Required by some rail/coach carriers."
+                  },
+                  "country_code": {
+                    "type": "string",
+                    "description": "Billing country as an ISO 3166-1 alpha-2 code (e.g. \"FR\")."
+                  },
+                  "terms_accepted": {
+                    "type": "boolean",
+                    "description": "Whether the traveller accepted the CARRIER's terms and conditions, which are separate from Jinko's. Send true only if they were actually shown and accepted."
+                  }
+                },
+                "required": [
+                  "email",
+                  "phone"
+                ],
+                "additionalProperties": false,
+                "description": "Booking contact (email + phone, both required). Required before the trip can be booked."
+              }
+            },
+            "required": [
+              "travelers",
+              "contact"
+            ],
+            "additionalProperties": false,
+            "description": "Set or update travelers and contact info on the trip. Optional per call (you can add_item while building the cart), but travelers and a contact must be present before booking."
+          },
+          "select_ancillaries": {
+            "type": "object",
+            "properties": {
+              "item_id": {
+                "type": "string",
+                "description": "ID of the trip item to select ancillaries for. Get from trip response items[].item_id"
+              },
+              "selections": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "offer_id": {
+                      "type": "string",
+                      "description": "Ancillary offer_id from available_ancillaries on the trip item"
+                    },
+                    "category": {
+                      "type": "string",
+                      "description": "Ancillary category (BAGGAGE, SEAT, MEAL, etc.)"
+                    },
+                    "pax_ref_id": {
+                      "type": "string",
+                      "description": "Passenger reference ID (for per-pax ancillaries)"
+                    },
+                    "segment_ref_ids": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Segment reference IDs (for segment-scoped ancillaries)"
+                    },
+                    "journey_ref_id": {
+                      "type": "string",
+                      "description": "Journey reference ID (for journey-scoped ancillaries)"
+                    },
+                    "quantity": {
+                      "type": "integer",
+                      "description": "Quantity (defaults to 1)"
+                    }
+                  },
+                  "required": [
+                    "offer_id"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "Ancillary selections. Full replacement — send all desired selections each time. Get offer_ids from trip_item.available_ancillaries[].offer_id"
+              }
+            },
+            "required": [
+              "item_id",
+              "selections"
+            ],
+            "additionalProperties": false,
+            "description": "Select ancillaries (bags, seats, meals) for a quoted trip item. Uses full-replacement semantics — send all desired selections."
+          },
+          "user_intent": {
+            "type": "string",
+            "description": "The end user's current request in their own words, e.g. \"help me with my travel plans\". Pass it as-is when short; otherwise condense the goal and constraints into 1-2 sentences. Strip personal identifiers (names, emails, phone numbers, addresses, payment details) — replace them with placeholders like \"[name]\". Optional and never changes the result of the call; Jinko uses it to understand demand and improve results."
+          }
+        },
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "checkout",
+      "title": "checkout",
+      "description": "Checkout a trip — returns the web checkout_url a human opens to pay, plus the agent_spt_params an agent can use to pay programmatically (no browser).\n\nPREREQUISITES (call these first via the trip tool):\n  trip(add_item)         → add the chosen flight or hotel to the trip\n  trip(upsert_travelers) → set traveler details + contact info\n  trip(select_ancillaries) [optional] → add bags/seats/meals before quoting (flights only)\n\nUSAGE:\n  checkout({ trip_id })\n\nJinko schedules a quote, polls until it completes, schedules fulfillment, and returns a Stripe checkout URL — all in one synchronous call.\n  • Human path: open the returned checkout_url in a browser to pay. Stripe webhooks finalize the booking after payment succeeds; no client-side confirm step is required.\n  • Agent path: mint a Shared Payment Token scoped to agent_spt_params, then call submit_agent_payment({ trip_id, shared_payment_token }).\n\nIMPORTANT: Never fabricate traveler data. Always make sure trip(add_item) and trip(upsert_travelers) have been called with real user-provided data first.\n\n**Cost: 1 credit per call.**",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "trip_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Trip ID returned by trip or get_trip. Pass it back exactly as returned. The trip must have items (add_item) and travelers (upsert_travelers) set before checkout."
+          },
+          "user_intent": {
+            "type": "string",
+            "description": "The end user's current request in their own words, e.g. \"help me with my travel plans\". Pass it as-is when short; otherwise condense the goal and constraints into 1-2 sentences. Strip personal identifiers (names, emails, phone numbers, addresses, payment details) — replace them with placeholders like \"[name]\". Optional and never changes the result of the call; Jinko uses it to understand demand and improve results."
+          }
+        },
+        "required": [
+          "trip_id"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "submit_agent_payment",
+      "title": "submit_agent_payment",
+      "description": "Submit a Shared Payment Token (SPT) to schedule the agent fulfillment and authorize the booking server-side in one call. This is the agent-pay alternative to sending the user to a checkout page.\n\nPREREQUISITE: call checkout first to get agent_spt_params, then mint an SPT scoped to those params.\n\nUSAGE:\n  submit_agent_payment({ trip_id, shared_payment_token })\n\nOn success the booking proceeds to fulfillment ({ status, payment_verified: true, booking_ref }). booking_ref (JNK-XXXXXX) is the Jinko booking reference — keep it: get_booking, hotel_cancel and flight_refund take it as booking_ref. It is the direct way an agent paying by SPT obtains that reference (no confirmation email); get_trip(trip_id) returns the same booking_ref if this reply is lost. If the issuer requires customer action (3DS) or declines, the response carries a checkout_url instead of booking_ref — open it in a browser to complete payment manually.\n\n**Cost: 1 credit per call.**",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "trip_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Trip ID returned by trip, get_trip, or checkout. Pass it back exactly as returned."
+          },
+          "shared_payment_token": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The Shared Payment Token (spt_...) minted by the agent platform, scoped to the agent_spt_params returned by checkout."
+          },
+          "user_intent": {
+            "type": "string",
+            "description": "The end user's current request in their own words, e.g. \"help me with my travel plans\". Pass it as-is when short; otherwise condense the goal and constraints into 1-2 sentences. Strip personal identifiers (names, emails, phone numbers, addresses, payment details) — replace them with placeholders like \"[name]\". Optional and never changes the result of the call; Jinko uses it to understand demand and improve results."
+          }
+        },
+        "required": [
+          "trip_id",
+          "shared_payment_token"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "get_trip",
+      "title": "get_trip",
+      "description": "Fetch the full lifecycle state of a trip — cart contents, travelers, quote status, fulfillment status, and any booking references already produced.\n\nUSAGE:\n  get_trip({ trip_id })\n\nThis is a read-only call. Use it to inspect a trip after trip(add_item), trip(upsert_travelers), or checkout — for example to confirm what items / travelers are currently on the cart, or to check whether a booking has been finalized post-checkout.\n\nIn structuredContent, lifecycle data is nested under trip. Read trip.booking_ref (JNK-XXXXXX) for the Jinko booking reference, which get_booking, hotel_cancel and flight_refund take as booking_ref. trip.booking_ref is present as soon as a fulfillment cart exists (fulfillment scheduled), which can be before payment completes — do not treat its presence as paid; check trip.fulfillment.status. The value never changes afterwards. trip.bookings[].booking_reference is the SUPPLIER confirmation (airline PNR / hotel confirmation number) and is NOT accepted by get_booking.\n\n**Cost: 1 credit per call.**",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "trip_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Trip ID returned by trip, get_trip, or checkout. Pass it back exactly as returned."
+          },
+          "user_intent": {
+            "type": "string",
+            "description": "The end user's current request in their own words, e.g. \"help me with my travel plans\". Pass it as-is when short; otherwise condense the goal and constraints into 1-2 sentences. Strip personal identifiers (names, emails, phone numbers, addresses, payment details) — replace them with placeholders like \"[name]\". Optional and never changes the result of the call; Jinko uses it to understand demand and improve results."
+          }
+        },
+        "required": [
+          "trip_id"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "flight_refund",
+      "title": "flight_refund",
+      "description": "Cancel a booked flight, refunding the tickets or voiding them when they are still inside the airline's void window.\n\nFirst call get_booking with booking_ref (and last_name for guests), choose the intended items[] entry, and inspect its servicing eligibility and refusal reasons. Use the SAME booking_ref + item_id for every action, including commit and status. item_id is the stable booked item, even after an exchange. last_name is required for guests and optional for authenticated owners. If a 409 returns items[], ask the customer to choose and retry with that item_id.\n\nCALL WITH ACTION PREVIEW FIRST — the preview costs nothing and cancels nothing.\n\nWORKFLOW:\n1. action=\"preview\" (the default) with booking_ref + item_id (plus last_name for guests) → whether this is a refund or a void, the penalty, the amount the customer gets back, the tickets it covers, and an \"svq_…\" quote handle.\n2. Show the customer that amount and get their agreement.\n3. action=\"commit\" with the SAME auth you used to preview, quote=\"svq_…\", and acknowledged = that quote's `refund` object copied field for field → returns an \"svc_…\" operation handle.\n4. action=\"status\" with operation=\"svc_…\" → the airline's answer, the state of every ticket, and where the money got to.\n\nUSAGE (guest — no login required):\n  flight_refund({ action: \"preview\", booking_ref: \"JNK-A7B3X9\", item_id: 42, last_name: \"Doe\" })\n\nUSAGE (authenticated owner):\n  flight_refund({ action: \"preview\", booking_ref: \"JNK-A7B3X9\", item_id: 42 })\n\n\nTHE OTHER TWO ACTIONS:\n- action=\"check\" is the read-only eligibility probe — is this ticket refundable at all. It quotes no customer figure and mints no handle; use \"preview\" for the amount the customer agrees to.\n- action=\"refund\" is the legacy one-shot path: it prices and refunds in a single call, so the customer cannot agree to the amount first. Use it only for callers already written against it.\n\nIMPORTANT:\n- Never commit without a preview: the customer must see the penalty and the amount they get back first.\n- `acknowledged` is the preview's `refund` object copied verbatim (value, currency, decimal_places) — never recomputed. If the amount has moved since, the commit is refused and a fresh quote is returned — show that one to the customer rather than committing the old figure.\n- A void and a refund are different outcomes: a void returns the original charge in full, a refund returns what the customer paid less the penalty. The preview says which one this booking gets — do not promise the other.\n- When the preview reports the penalty is not known (`fee_known: false`), tell the customer we will confirm the amount. That is NOT a free cancellation.\n- When the preview reports support_level \"MANUAL_REQUIRED\", a person at Jinko has to complete it: submit it with action=\"commit\" and manual_ok=true, which parks the operation in the operator queue. Nothing reaches the airline until an operator settles it. Send `acknowledged` with it as usual when the preview carried a `refund`; a preview whose penalty could not be established carries none, and then manual_ok travels alone and the operator establishes the amount.\n- EMDs (paid seats, bags and other extras) cannot be recovered through this path. The preview lists every document it covers and marks those.\n- The customer's refund and the airline's own figures are different numbers. Quote the customer figure.\n- When a check or a refusal carries a \"Reason:\" line, that is the supplier's classification of its own refusal (NON_REFUNDABLE_FARE, EXCHANGED_TICKET, CARRIER_NOT_AUTHORIZED, DOCUMENT_RETIRED) — a fare nobody can refund and a ticket an agent must refund by hand are different answers, so relay the one the line names rather than collapsing them into \"not refundable\".\n\nAlways start with `get_booking` and select the item before cancelling.\n\n**Cost: 1 credit per call.**",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "preview",
+              "commit",
+              "status",
+              "check",
+              "refund"
+            ],
+            "default": "preview",
+            "description": "What to do. \"preview\" (default) prices the cancellation and returns a quote handle without cancelling anything — always start here so the customer sees whether this is a refund or a void, the penalty and the amount they get back. \"commit\" cancels, using the quote handle and the refund the customer acknowledged. \"status\" reports where a committed cancellation, its tickets and its refund got to. \"check\" is the read-only eligibility probe and quotes no customer figure. \"refund\" is the legacy one-shot path that prices and refunds in a single call, with no chance to confirm the figures first."
+          },
+          "booking_ref": {
+            "type": "string",
+            "pattern": "^JNK-[A-Z0-9]{6}$",
+            "description": "Trip-level Jinko booking_ref returned by get_trip or submit_agent_payment. Use it to look up the booking with get_booking."
+          },
+          "item_id": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "Stable booked item_id from get_booking.items[]. Select the item to service and send its item_id on every action. May be omitted only when the booking has exactly one item in this domain."
+          },
+          "last_name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Primary traveler last name. Required for guests; optional for an authenticated owner of the booking."
+          },
+          "ticket_numbers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Specific ticket numbers, on actions \"check\" and \"refund\" only. The preview/commit path covers the flight and every document issued for it — the airlines refuse ticket subsets there."
+          },
+          "quote": {
+            "type": "string",
+            "pattern": "^svq_",
+            "description": "The \"svq_…\" handle a prior action \"preview\" returned. REQUIRED for action \"commit\". It binds the cancellation to the figures the customer was shown."
+          },
+          "acknowledged": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "type": "integer",
+                "description": "The refund in minor units — the quote's refund.value, copied verbatim."
+              },
+              "currency": {
+                "type": "string",
+                "minLength": 1,
+                "description": "The quote's refund.currency."
+              },
+              "decimal_places": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "The quote's refund.decimal_places, so the value's scale is unambiguous."
+              }
+            },
+            "required": [
+              "value",
+              "currency",
+              "decimal_places"
+            ],
+            "additionalProperties": false,
+            "description": "The preview's `refund` object copied field for field — the amount the customer agreed to. REQUIRED for action \"commit\", except when submitting a MANUAL_REQUIRED preview that carried no figure at all (manual_ok, see below). Do not recompute or re-scale it: the platform compares it against the live figure and refuses the commit with a fresh quote when they differ, rather than settling at a number nobody was shown."
+          },
+          "manual_ok": {
+            "type": "boolean",
+            "description": "Only for a preview that came back support_level \"MANUAL_REQUIRED\": submit it to the Jinko operator queue. The operation is created already parked and nothing is sent to the airline until an operator settles it. Without this flag such a commit is refused. Pass the preview's `refund` as `acknowledged` alongside it whenever the preview carried one; a preview whose penalty was not established carries none, and then this flag travels alone and the operator establishes the amount."
+          },
+          "operation": {
+            "type": "string",
+            "pattern": "^svc_",
+            "description": "The \"svc_…\" operation handle a prior action \"commit\" returned. REQUIRED for action \"status\", unless you are following a legacy refund through refund_reference."
+          },
+          "refund_reference": {
+            "type": "string",
+            "description": "Refund reference returned by the legacy action \"refund\". Use it on action \"status\" only for a refund started that way; an operation started with \"commit\" is followed by its \"svc_…\" handle instead."
+          },
+          "user_intent": {
+            "type": "string",
+            "description": "The end user's current request in their own words, e.g. \"help me with my travel plans\". Pass it as-is when short; otherwise condense the goal and constraints into 1-2 sentences. Strip personal identifiers (names, emails, phone numbers, addresses, payment details) — replace them with placeholders like \"[name]\". Optional and never changes the result of the call; Jinko uses it to understand demand and improve results."
+          }
+        },
+        "required": [
+          "booking_ref"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "flight_exchange",
+      "title": "flight_exchange",
+      "description": "Exchange a booked flight for a different itinerary.\n\nFirst call get_booking with booking_ref (and last_name for guests), choose the intended items[] entry, and inspect its servicing eligibility and refusal reasons. Use the SAME booking_ref + item_id for every action, including commit and status. item_id is the stable booked item, even after an exchange. last_name is required for guests and optional for authenticated owners. If a 409 returns items[], ask the customer to choose and retry with that item_id.\n\nNo login required — authenticate with the Jinko booking reference and traveler last name.\n\nWORKFLOW:\n1. action=\"shop\" with booking_ref + item_id (plus last_name for guests) + optional preferred_departure_date → browse exchange options\n2. action=\"price\" with booking_ref + item_id (plus last_name for guests) + offer_id → get exact pricing (fare difference, penalties)\n3. If user confirms, action=\"commit\" with booking_ref + item_id (plus last_name for guests) + offer_id + session_reference → execute the exchange\n4. action=\"status\" with booking_ref + item_id (plus last_name for guests) → poll exchange progress\n\nIMPORTANT:\n- Always shop before pricing, price before committing.\n- Get explicit user confirmation before committing — exchanges may involve fare differences (additional payment or refund).\n- The session_reference from pricing must be passed to commit.\n\nAIRLINE REFERENCE:\n- The airline reference is the locator the traveler can use on the airline's own site or at check-in.\n- When no airline reference is shown, read it from get_booking or the original confirmation.\n- Keep servicing the same booking_ref + item_id after the exchange.\n\nTHE NEW FARE — an exchange re-fares the ticket, so the traveler ends up on a different product:\n- When the price output opens with \"FARE CHANGE\", relay that sentence to the traveler before committing. It is the one thing the fare difference does not tell them: a cheaper exchange can still move them off a refundable fare.\n- Relay the \"New fare\" block too — refund policy, change policy, checked baggage and carry-on — before asking for approval.\n- \"Not stated by the fare\" means the provider stated no rule. Report it as unstated. Never fill it in from the ticket being replaced, and never read an unstated rule as \"non-refundable\" or as \"included\".\n\n**Cost: 1 credit per call.**",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "shop",
+              "price",
+              "commit",
+              "status"
+            ],
+            "description": "Action to perform: \"shop\" to browse exchange alternatives, \"price\" to get exact pricing for an offer, \"commit\" to execute the exchange, \"status\" to poll exchange progress"
+          },
+          "booking_ref": {
+            "type": "string",
+            "pattern": "^JNK-[A-Z0-9]{6}$",
+            "description": "Trip-level Jinko booking_ref returned by get_trip or submit_agent_payment. Use it to look up the booking with get_booking."
+          },
+          "item_id": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "Stable booked item_id from get_booking.items[]. Select the item to service and send its item_id on every action. May be omitted only when the booking has exactly one item in this domain."
+          },
+          "last_name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Primary traveler last name. Required for guests; optional for an authenticated owner of the booking."
+          },
+          "ticket_numbers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Specific ticket numbers to exchange (for partial exchanges). Omit for full booking."
+          },
+          "offer_id": {
+            "type": "string",
+            "description": "Exchange offer ID returned from a previous shop action (canonical name). Required for price and commit actions. Preferred over exchange_offer_id."
+          },
+          "exchange_offer_id": {
+            "type": "string",
+            "description": "Deprecated alias for offer_id. Use offer_id instead."
+          },
+          "session_reference": {
+            "type": "string",
+            "description": "Session reference returned from a previous price action. Required for commit action."
+          },
+          "preferred_departure_date": {
+            "type": "string",
+            "description": "Preferred departure date for the new flight (YYYY-MM-DD format). Used with shop action."
+          },
+          "user_intent": {
+            "type": "string",
+            "description": "The end user's current request in their own words, e.g. \"help me with my travel plans\". Pass it as-is when short; otherwise condense the goal and constraints into 1-2 sentences. Strip personal identifiers (names, emails, phone numbers, addresses, payment details) — replace them with placeholders like \"[name]\". Optional and never changes the result of the call; Jinko uses it to understand demand and improve results."
+          }
+        },
+        "required": [
+          "action",
+          "booking_ref"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "get_booking",
+      "title": "get_booking",
+      "description": "Start here before flight_refund, flight_exchange, hotel_cancel, ground_cancel, ground_exchange or car_cancel. Retrieve a booking by its Jinko booking_ref, then choose the intended items[] entry.\n\nEach item has a stable numeric item_id, itinerary summary, confirmation, status and servicing eligibility: can_refund, can_void, can_exchange, refund_support_level, exchange_support_level and refusal reasons/reason_code. Use booking_ref + that item_id on every subsequent servicing action. Keep the same booked item_id after an exchange.\n\nlast_name is required for guests and optional for an authenticated owner. No login is needed for guest lookup.\n\nUSAGE: get_booking({ booking_ref: \"JNK-A7B3X9\", last_name: \"Doe\" })\n\nbooking_ref is the JNK-XXXXXX reference from the confirmation email, get_trip or submit_agent_payment. The airline reference returned for flight items is for airline check-in; servicing uses booking_ref + item_id.\n\n**Cost: 1 credit per call.**",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "booking_ref": {
+            "type": "string",
+            "pattern": "^JNK-[A-Z0-9]{6}$",
+            "description": "Trip-level Jinko booking_ref returned by get_trip or submit_agent_payment. Use it to look up the booking with get_booking."
+          },
+          "last_name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Primary traveler last name. Required for guests; optional for an authenticated owner of the booking."
+          },
+          "user_intent": {
+            "type": "string",
+            "description": "The end user's current request in their own words, e.g. \"help me with my travel plans\". Pass it as-is when short; otherwise condense the goal and constraints into 1-2 sentences. Strip personal identifiers (names, emails, phone numbers, addresses, payment details) — replace them with placeholders like \"[name]\". Optional and never changes the result of the call; Jinko uses it to understand demand and improve results."
+          }
+        },
+        "required": [
+          "booking_ref"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "hotel_cancel",
+      "title": "hotel_cancel",
+      "description": "First call get_booking with booking_ref (and last_name for guests), choose the intended items[] entry, and inspect its servicing eligibility and refusal reasons. Use the SAME booking_ref + item_id for every action, including commit and status. item_id is the stable booked item, even after an exchange. last_name is required for guests and optional for authenticated owners. If a 409 returns items[], ask the customer to choose and retry with that item_id.\n\nCancel a hotel booking. CALL WITH ACTION PREVIEW FIRST — the preview costs nothing and cancels nothing.\n\nWORKFLOW:\n1. action=\"preview\" with booking_ref + item_id (plus last_name for guests) → penalty, customer refund, policy, and an \"svq_…\" quote handle.\n2. Show the customer the refund and get their agreement.\n3. action=\"commit\" with the SAME auth you used to preview, quote=\"svq_…\", and acknowledged = that quote's `refund` object copied field for field → returns an \"svc_…\" operation handle.\n4. action=\"status\" with operation=\"svc_…\" → the supplier's answer and where the refund got to.\n\nUSAGE (guest — no login required):\n  hotel_cancel({ action: \"preview\", booking_ref: \"JNK-A7B3X9\", item_id: 42, last_name: \"Doe\" })\n\nUSAGE (authenticated owner):\n  hotel_cancel({ action: \"preview\", booking_ref: \"JNK-A7B3X9\", item_id: 42 })\n\n\nIMPORTANT:\n- Never commit without a preview: the customer must see the penalty and the refund first.\n- `acknowledged` is the preview's `refund` object copied verbatim (value, currency, decimal_places) — never recomputed. If the refund has moved since, the commit is refused and a fresh quote is returned — show that one to the customer rather than committing the old figure.\n- When the preview reports the penalty is not known (`fee_known: false`), tell the customer we will confirm the amount. That is NOT free cancellation.\n- The customer refund and the supplier's figures are different numbers. Quote the customer figure.\n- action=\"cancel\" is the legacy one-shot path: it prices and cancels in a single call, so the customer cannot agree to the refund first. Use it only for callers already written against it.\n\nAlways start with `get_booking` and select the item before cancelling.\n\n**Cost: 1 credit per call.**",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "preview",
+              "commit",
+              "status",
+              "cancel"
+            ],
+            "default": "preview",
+            "description": "What to do. \"preview\" (default) prices the cancellation and returns a quote handle without cancelling anything — always start here so the customer sees the penalty and the refund before agreeing. \"commit\" cancels, using the quote handle and the refund the customer acknowledged. \"status\" reports where a committed cancellation and its refund got to. \"cancel\" is the legacy one-shot path that quotes and cancels in a single call, with no chance to confirm the figures first."
+          },
+          "booking_ref": {
+            "type": "string",
+            "pattern": "^JNK-[A-Z0-9]{6}$",
+            "description": "Trip-level Jinko booking_ref returned by get_trip or submit_agent_payment. Use it to look up the booking with get_booking."
+          },
+          "item_id": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "Stable booked item_id from get_booking.items[]. Select the item to service and send its item_id on every action. May be omitted only when the booking has exactly one item in this domain."
+          },
+          "last_name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Primary traveler last name. Required for guests; optional for an authenticated owner of the booking."
+          },
+          "quote": {
+            "type": "string",
+            "pattern": "^svq_",
+            "description": "The \"svq_…\" handle a prior action \"preview\" returned. REQUIRED for action \"commit\". It binds the cancellation to the figures the customer was shown."
+          },
+          "acknowledged": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "type": "integer",
+                "description": "The refund in minor units — the quote's refund.value, copied verbatim."
+              },
+              "currency": {
+                "type": "string",
+                "minLength": 1,
+                "description": "The quote's refund.currency."
+              },
+              "decimal_places": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "The quote's refund.decimal_places, so the value's scale is unambiguous."
+              }
+            },
+            "required": [
+              "value",
+              "currency",
+              "decimal_places"
+            ],
+            "additionalProperties": false,
+            "description": "The preview's `refund` object copied field for field — the refund the customer agreed to. REQUIRED for action \"commit\". Do not recompute or re-scale it: the platform compares it against the live figure and refuses the commit with a fresh quote when they differ, rather than settling at a number nobody was shown."
+          },
+          "operation": {
+            "type": "string",
+            "pattern": "^svc_",
+            "description": "The \"svc_…\" operation handle a prior action \"commit\" returned. REQUIRED for action \"status\"."
+          },
+          "user_intent": {
+            "type": "string",
+            "description": "The end user's current request in their own words, e.g. \"help me with my travel plans\". Pass it as-is when short; otherwise condense the goal and constraints into 1-2 sentences. Strip personal identifiers (names, emails, phone numbers, addresses, payment details) — replace them with placeholders like \"[name]\". Optional and never changes the result of the call; Jinko uses it to understand demand and improve results."
+          }
+        },
+        "required": [
+          "booking_ref"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "ground_cancel",
+      "title": "ground_cancel",
+      "description": "First call get_booking with booking_ref (and last_name for guests), choose the intended items[] entry, and inspect its servicing eligibility and refusal reasons. Use the SAME booking_ref + item_id for every action, including commit and status. item_id is the stable booked item, even after an exchange. last_name is required for guests and optional for authenticated owners. If a 409 returns items[], ask the customer to choose and retry with that item_id.\n\nCancel a ground-transport booking (rail / coach / ferry) made via Distribusion. No login required — authenticate with the Jinko booking reference and lead traveler last name.\n\nPREREQUISITES:\n- booking_ref (JNK-XXXXXX format) and last_name of the lead traveler from the booking confirmation email.\n\nWORKFLOW:\n1. action=\"preview\" with booking_ref + item_id (plus last_name for guests) → quote the cancellation fee + refund split (card refund vs carrier voucher) and capture the returned cancellation_id.\n2. If the user confirms, action=\"commit\" with booking_ref + item_id (plus last_name for guests) + cancellation_id → schedule the cancellation with the carrier. May return status:\"pending\" when the carrier confirms async.\n3. action=\"status\" with booking_ref + item_id (plus last_name for guests) → poll until the carrier returns \"confirmed\" or \"rejected\". Safe to call repeatedly.\n\nIMPORTANT:\n- Always preview before committing — the cancellation_id from preview is REQUIRED for commit.\n- Always get explicit user confirmation before calling commit.\n- Refunds may be split between the original card (monetary_refund) and a carrier voucher (voucher_refund). Surface both to the user.\n- The carrier may reject the cancellation; surface rejected_reason to the user.\n\n**Cost: 1 credit per call.**",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "preview",
+              "commit",
+              "status"
+            ],
+            "description": "Action to perform: \"preview\" to quote the fee + refund and obtain a cancellation_id, \"commit\" to schedule the cancellation with the carrier, \"status\" to poll the carrier confirmation outcome."
+          },
+          "booking_ref": {
+            "type": "string",
+            "pattern": "^JNK-[A-Z0-9]{6}$",
+            "description": "Trip-level Jinko booking_ref returned by get_trip or submit_agent_payment. Use it to look up the booking with get_booking."
+          },
+          "item_id": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "Stable booked item_id from get_booking.items[]. Select the item to service and send its item_id on every action. May be omitted only when the booking has exactly one item in this domain."
+          },
+          "last_name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Primary traveler last name. Required for guests; optional for an authenticated owner of the booking."
+          },
+          "cancellation_id": {
+            "type": "integer",
+            "description": "Preview handle returned by a prior `action: \"preview\"` call. REQUIRED for `action: \"commit\"`. Ground connectors quote per-preview; the carrier rejects a commit without a matching preview."
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "description": "Optional free-text cancellation reason (e.g. \"changed travel plans\"). Forwarded to the carrier when supported; ignored otherwise."
+          },
+          "user_intent": {
+            "type": "string",
+            "description": "The end user's current request in their own words, e.g. \"help me with my travel plans\". Pass it as-is when short; otherwise condense the goal and constraints into 1-2 sentences. Strip personal identifiers (names, emails, phone numbers, addresses, payment details) — replace them with placeholders like \"[name]\". Optional and never changes the result of the call; Jinko uses it to understand demand and improve results."
+          }
+        },
+        "required": [
+          "action",
+          "booking_ref"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "ground_exchange",
+      "title": "ground_exchange",
+      "description": "First call get_booking with booking_ref (and last_name for guests), choose the intended items[] entry, and inspect its servicing eligibility and refusal reasons. Use the SAME booking_ref + item_id for every action, including commit and status. item_id is the stable booked item, even after an exchange. last_name is required for guests and optional for authenticated owners. If a 409 returns items[], ask the customer to choose and retry with that item_id.\n\nExchange a ground-transport booking (rail / coach / ferry) made via Distribusion for a different itinerary (new date and/or new stations). No login required — authenticate with the Jinko booking reference and lead traveler last name.\n\nPREREQUISITES:\n- booking_ref (JNK-XXXXXX format) and last_name of the lead traveler from the booking confirmation email.\n- For preview: a new_search_bounds object with at least one of departure_date / new_departure_station / new_arrival_station.\n\nWORKFLOW:\n1. action=\"preview\" with booking_ref + item_id (plus last_name for guests) + new_search_bounds → quote the new itinerary, the delta price (positive = additional charge, negative = refund), the payment method (card or voucher), and capture the returned amendment_id.\n2. If the user confirms, action=\"commit\" with booking_ref + item_id (plus last_name for guests) + amendment_id (+ payment_intent_id when a positive card delta is owed) → schedule the amendment with the carrier. May return status:\"pending\" when the carrier confirms async.\n3. action=\"status\" with booking_ref + item_id (plus last_name for guests) → poll until the carrier returns \"confirmed\" or \"rejected\". Safe to call repeatedly.\n\nIMPORTANT:\n- Always preview before committing — the amendment_id from preview is REQUIRED for commit.\n- Always get explicit user confirmation before calling commit, especially when a non-zero delta_amount is involved.\n- Positive delta_amount = the user owes more; negative delta_amount = the user is refunded.\n- When delta_payment_method is \"voucher\", a carrier voucher is issued in place of (or in addition to) the card movement.\n- The carrier may reject the exchange; surface rejected_reason to the user.\n\n**Cost: 1 credit per call.**",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "preview",
+              "commit",
+              "status"
+            ],
+            "description": "Action to perform: \"preview\" to quote the delta amount + new itinerary and obtain an amendment_id, \"commit\" to schedule the amendment with the carrier, \"status\" to poll the carrier confirmation outcome."
+          },
+          "booking_ref": {
+            "type": "string",
+            "pattern": "^JNK-[A-Z0-9]{6}$",
+            "description": "Trip-level Jinko booking_ref returned by get_trip or submit_agent_payment. Use it to look up the booking with get_booking."
+          },
+          "item_id": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "Stable booked item_id from get_booking.items[]. Select the item to service and send its item_id on every action. May be omitted only when the booking has exactly one item in this domain."
+          },
+          "last_name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Primary traveler last name. Required for guests; optional for an authenticated owner of the booking."
+          },
+          "new_search_bounds": {
+            "type": "object",
+            "properties": {
+              "departure_date": {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                "description": "New departure date (YYYY-MM-DD). Optional."
+              },
+              "new_departure_station": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Replacement origin station code (e.g. \"FRPAR\"). Optional."
+              },
+              "new_arrival_station": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Replacement destination station code (e.g. \"FRLYN\"). Optional."
+              }
+            },
+            "additionalProperties": false,
+            "description": "New itinerary bounds — date and/or stations the user wants to exchange to. REQUIRED for `action: \"preview\"`. At least one of the three sub-fields must be set."
+          },
+          "amendment_row_id": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "Row id of the preview returned by a prior `action: \"preview\"` call (the `amendment_row_id` field). REQUIRED for `action: \"commit\"`. Identifies the persisted preview holding the option slate."
+          },
+          "amendment_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Id of the chosen amendment option from a prior `action: \"preview\"` call (an `available_amendments[].amendment_id`). REQUIRED for `action: \"commit\"`. The carrier rejects a commit without a matching preview option."
+          },
+          "payment_intent_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Stripe PaymentIntent id authorising the delta charge. Required only when the preview quoted a positive `delta_amount` paid by card. Refunds and voucher-mode amendments do not require one."
+          },
+          "user_intent": {
+            "type": "string",
+            "description": "The end user's current request in their own words, e.g. \"help me with my travel plans\". Pass it as-is when short; otherwise condense the goal and constraints into 1-2 sentences. Strip personal identifiers (names, emails, phone numbers, addresses, payment details) — replace them with placeholders like \"[name]\". Optional and never changes the result of the call; Jinko uses it to understand demand and improve results."
+          }
+        },
+        "required": [
+          "action",
+          "booking_ref"
+        ],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    }
+  ]
+}

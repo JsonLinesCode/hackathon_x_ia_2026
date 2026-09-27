@@ -1,4 +1,4 @@
-import { PolicyRulesSchema, TravelOptionSchema, type PolicyRules, type TravelOption } from "@repo/types";
+import { FlightDetailsSchema, PolicyRulesSchema, TravelOptionSchema, type PolicyRules, type TravelOption } from "@repo/types";
 import { evaluatePolicy, travelerCost } from "./policy";
 
 // Compliance always precedes optimization. Lower score wins; ties are stable by id.
@@ -7,7 +7,7 @@ export function rankOptions(inputs: TravelOption[], rules: PolicyRules) {
   const options = inputs.map((input) => {
     const option = TravelOptionSchema.parse(input);
     const totalEur = Math.round(option.per_traveler.reduce((sum, item) => sum + travelerCost(item), 0) * 100) / 100;
-    const duration = option.per_traveler.reduce((sum, item) => sum + (item.flight?.duration_minutes ?? 0), 0);
+    const duration = option.per_traveler.reduce((sum, item) => sum + (item.flight?.duration_minutes ?? 0) + (item.flight ? FlightDetailsSchema.safeParse(item.flight.details).data?.inbound?.duration_minutes ?? 0 : 0), 0);
     const marginPenalty = option.per_traveler.reduce((sum, item) => {
       if (!item.flight) return sum;
       if (!option.meeting_start) return sum + 1;

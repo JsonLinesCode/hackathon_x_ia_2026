@@ -1,6 +1,7 @@
 import "server-only";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { PlanningError } from "@repo/core";
 import { EnvironmentError, getEnv } from "./env";
 import { UnauthorizedError } from "./auth";
 
@@ -34,6 +35,7 @@ export async function handleApi(work: () => Promise<Response>) {
   catch (error) {
     if (error instanceof UnauthorizedError) return json({ error: error.message }, 401);
     if (error instanceof EnvironmentError) return json({ error: error.message }, 503);
+    if (error instanceof PlanningError) return json({ error: error.message }, 409);
     if (error instanceof HttpError) return json({ error: error.message }, error.status);
     if (error instanceof z.ZodError) return json({
       error: "Check the highlighted fields.",

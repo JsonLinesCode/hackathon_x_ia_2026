@@ -1,8 +1,8 @@
-import { PolicyRulesSchema, TravelOptionSchema, type PolicyRules, type PolicyViolation, type TravelOption } from "@repo/types";
+import { FlightDetailsSchema, PolicyRulesSchema, TravelOptionSchema, type PolicyRules, type PolicyViolation, type TravelOption } from "@repo/types";
 
 export function travelerCost(item: TravelOption["per_traveler"][number]) {
   return (Math.round((item.flight?.price_eur ?? 0) * 100)
-    + Math.round((item.hotel?.nightly_eur ?? 0) * 100) * (item.hotel?.nights ?? 0)) / 100;
+    + Math.round((item.hotel?.total_eur ?? (item.hotel?.nightly_eur ?? 0) * (item.hotel?.nights ?? 0)) * 100)) / 100;
 }
 
 export function evaluatePolicy(input: TravelOption, rules: PolicyRules) {
@@ -13,7 +13,8 @@ export function evaluatePolicy(input: TravelOption, rules: PolicyRules) {
     const add = (code: PolicyViolation["code"], message: string) =>
       violations.push({ code, traveler_id: traveler.traveler_id, message });
     const { flight, hotel } = traveler;
-    if (flight && flight.duration_minutes < policy.economy_under_hours * 60 && flight.cabin !== "economy") {
+    const returnDuration = flight ? FlightDetailsSchema.safeParse(flight.details).data?.inbound?.duration_minutes : undefined;
+    if (flight && Math.min(flight.duration_minutes, returnDuration ?? Infinity) < policy.economy_under_hours * 60 && flight.cabin !== "economy") {
       add("flight_class", "Flights under " + policy.economy_under_hours + " hours must be in economy.");
     }
     if (hotel && hotel.nightly_eur > policy.hotel_cap_eur) {

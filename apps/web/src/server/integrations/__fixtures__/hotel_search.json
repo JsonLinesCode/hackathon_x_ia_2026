@@ -1,0 +1,129 @@
+{
+  "structuredContent": {
+    "status": "success",
+    "data": {
+      "hotels": [
+        {
+          "hotel_id": "lp394f5",
+          "name": "Meli\u00e1 Berlin",
+          "address": "Friedrichstr. 103",
+          "city": "Berlin",
+          "country": "DE",
+          "star_rating": 4,
+          "rating": 9,
+          "review_count": 10085,
+          "main_photo": "https://static.cupid.travel/hotels/115579732.jpg",
+          "thumbnail": "https://static.cupid.travel/hotels/thumbnail/115579732.jpg",
+          "latitude": 52.52142333984375,
+          "longitude": 13.388218879699707,
+          "rooms": [
+            {
+              "room_id": "3285885",
+              "room_name": "",
+              "requested_occupancy": 1,
+              "max_occupancy": 1,
+              "room_capacity": 2,
+              "rates": [
+                {
+                  "offer_id": "htl_5c78919772b9eb09",
+                  "board_type": "RO",
+                  "board_name": "Room Only",
+                  "total_amount": 359.78,
+                  "currency": "EUR",
+                  "total_amount_display": "EUR 359.78",
+                  "is_refundable": true,
+                  "free_cancellation_until": "2026-10-25T10:00:00Z",
+                  "cancellation_schedule": [
+                    {
+                      "cancel_time": "2026-10-25T10:00:00Z",
+                      "amount": 310.83,
+                      "currency": "EUR",
+                      "type": "amount",
+                      "display": "EUR 310.83"
+                    }
+                  ],
+                  "taxes_breakdown": [
+                    {
+                      "amount": 24.8,
+                      "currency": "EUR",
+                      "description": "City tax",
+                      "included": false,
+                      "display": "EUR 24.80"
+                    },
+                    {
+                      "amount": 23.15,
+                      "currency": "EUR",
+                      "description": "VAT",
+                      "included": false,
+                      "display": "EUR 23.15"
+                    }
+                  ],
+                  "payment_types": [
+                    "NUITEE_PAY"
+                  ]
+                },
+                {
+                  "offer_id": "htl_79bee6a723995efa",
+                  "board_type": "BI",
+                  "board_name": "Breakfast Included",
+                  "total_amount": 400.71,
+                  "currency": "EUR",
+                  "total_amount_display": "EUR 400.71",
+                  "is_refundable": true,
+                  "free_cancellation_until": "2026-10-25T10:00:00Z",
+                  "cancellation_schedule": [
+                    {
+                      "cancel_time": "2026-10-25T10:00:00Z",
+                      "amount": 346.21,
+                      "currency": "EUR",
+                      "type": "amount",
+                      "display": "EUR 346.21"
+                    }
+                  ],
+                  "taxes_breakdown": [
+                    {
+                      "amount": 27.62,
+                      "currency": "EUR",
+                      "description": "City tax",
+                      "included": false,
+                      "display": "EUR 27.62"
+                    },
+                    {
+                      "amount": 25.78,
+                      "currency": "EUR",
+                      "description": "VAT",
+                      "included": false,
+                      "display": "EUR 25.78"
+                    }
+                  ],
+                  "payment_types": [
+                    "NUITEE_PAY"
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "total": 3,
+      "pagination": {
+        "total_count": 1333,
+        "next_offset": 100,
+        "has_more": true
+      },
+      "destination_resolution": {
+        "shape": "city",
+        "match": "exact",
+        "status": "resolved",
+        "requested_city": "Berlin",
+        "requested_country": "de",
+        "resolved_city": "Berlin",
+        "resolved_country": "DE",
+        "latitude": 52.509582421239664,
+        "longitude": 13.395859437920615,
+        "radius_km": 12.376661568205002,
+        "catalog_hotel_count": 2103
+      }
+    }
+  }
+}
