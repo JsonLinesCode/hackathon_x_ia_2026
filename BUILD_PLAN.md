@@ -176,6 +176,8 @@ Wrap every call with a timeout, one retry, and a timeline entry on failure.
 - Policies (`/policies`): edit the policy rules stored in the DB.
 - Settings (`/profile`): Google connection status and "Reconnect", sign out.
 - Assistant (`/assistant`, Phase 6): the manager's chat with the agent.
+- My trip (`/my-trip`) and the traveler-facing views in `traveler-views.tsx`: travelers have no accounts, so reuse these components for the public traveler page `/r/[token]` (trip summary, itinerary, confirm / propose another time) instead of keeping a signed-in traveler area. Remove `/my-trip` from the manager navigation once `/r/[token]` works.
+- Existing components (`app-shell.tsx`, `dashboard.tsx`, `trip-workspace.tsx`, `traveler-views.tsx`, `travel-primitives.tsx`, `packages/ui`) are the starting point: extend them and swap their data source from `lib/travel-data.ts` fixtures to the API. Do not rewrite them from scratch.
 - Keep `/design-system`. Migrate from the `[...path]` catch-all to proper dynamic routes where needed; old fixture-only routes may redirect to the new ones.
 
 Every screen needs loading, empty, and error states, and must stay responsive on mobile.

@@ -28,16 +28,14 @@ import {
   CreateTrip,
   Planning,
   TripPlan,
-  TravelersPage,
-  PoliciesPage,
 } from "./trip-workspace";
 import {
   Disruptions,
   Itinerary,
   TravelerHome,
   Assistant,
-  Profile,
 } from "./traveler-views";
+import { TravelersManager, PoliciesManager, ManagerSettings } from "./managed-data";
 import { DesignSystem } from "./design-system";
 
 const navigation = [
@@ -312,9 +310,9 @@ export function AppShell({ screen = "overview" }: { screen?: Screen }) {
           {screen === "home" && <TravelerHome />}
           {screen === "assistant" && <Assistant />}
           {screen === "itinerary" && <Itinerary />}
-          {screen === "travelers" && <TravelersPage />}
-          {screen === "policies" && <PoliciesPage />}
-          {screen === "profile" && <Profile />}
+          {screen === "travelers" && <TravelersManager />}
+          {screen === "policies" && <PoliciesManager />}
+          {screen === "profile" && <ManagerSettings />}
           {screen === "design-system" && <DesignSystem />}
         </motion.main>
       </div>

@@ -55,15 +55,26 @@ Use:
 - lucide-react
 - Zod
 
-Future integrations may include:
+Integrations authorized by BUILD_PLAN.md:
 
+- Supabase Auth and Postgres: the persistence layer
 - OpenAI
 - Jinko
 - Google Calendar
-- Supabase
-- Slack
+- Gmail
 
-Do NOT implement these integrations unless explicitly requested.
+Implement only the phase explicitly requested by the user. Stop after that phase's
+acceptance checks and report the SQL migration and manual configuration required.
+Phase 1 authorizes Supabase persistence and Google sign-in; OpenAI, Jinko,
+Calendar/Gmail operations and agent workflows belong to later phases.
+Do not add Slack, Teams, a mock mode, or other integrations.
+
+All secrets stay in server-only modules under apps/web/src/server. Use lazy,
+phase-scoped Zod environment validation. User data is isolated with Supabase RLS;
+Google refresh tokens are service-role-only. Preserve the existing layout.
+Paid or irreversible actions require an explicit manager decision recorded in the
+database. Never complete payments. Keep Next.js and eslint-config-next on the
+latest patched 15.5.x; never downgrade them.
 
 ## Architecture
 
@@ -155,6 +166,7 @@ Before considering a task complete:
 - run lint
 - run typecheck
 - run build
+- run test (Vitest, from Phase 1 onward)
 - fix resulting errors
 
 Never knowingly leave the repository in a broken state.

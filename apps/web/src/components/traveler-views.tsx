@@ -5,7 +5,6 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   ArrowRight,
   ArrowUp,
-  Bell,
   Bot,
   Building2,
   CalendarClock,
@@ -25,7 +24,6 @@ import {
   Route,
   Send,
   Sparkles,
-  UserRound,
   Users,
   WalletCards,
   Clock3,
@@ -682,98 +680,6 @@ export function Assistant() {
           <ArrowUp size={22} />
         </Button>
       </form>
-    </div>
-  );
-}
-
-export function Profile() {
-  const [saved, setSaved] = useState(false);
-  const [seat, setSeat] = useState("aisle");
-  const [notify, setNotify] = useState(true);
-  useEffect(() => {
-    try {
-      const stored = JSON.parse(
-        localStorage.getItem("travel-manager-preferences") ?? "null",
-      );
-      if (stored && ["aisle", "window", "none"].includes(stored.seat)) {
-        setSeat(stored.seat);
-        setNotify(Boolean(stored.notify));
-      }
-    } catch {}
-  }, []);
-  return (
-    <div className="traveler-stack">
-      <div className="person profile-person">
-        <Avatar size="lg">
-          <UserRound size={28} />
-        </Avatar>
-        <div>
-          <h1>Alex Morgan</h1>
-          <p className="muted">Acme Europe · Business plan</p>
-        </div>
-      </div>
-      <form
-        className="form-stack"
-        onSubmit={(event) => {
-          event.preventDefault();
-          try {
-            localStorage.setItem(
-              "travel-manager-preferences",
-              JSON.stringify({ seat, notify }),
-            );
-            setSaved(true);
-          } catch {
-            setSaved(false);
-          }
-        }}
-      >
-        <label>
-          Seat preference
-          <select
-            value={seat}
-            onChange={(event) => {
-              setSeat(event.target.value);
-              setSaved(false);
-            }}
-          >
-            <option value="aisle">Aisle</option>
-            <option value="window">Window</option>
-            <option value="none">No preference</option>
-          </select>
-        </label>
-        <label className="checkbox-label">
-          <input
-            type="checkbox"
-            checked={notify}
-            onChange={(event) => {
-              setNotify(event.target.checked);
-              setSaved(false);
-            }}
-          />
-          <Bell size={17} />
-          Trip notifications
-        </label>
-        <Button type="submit">Save preferences</Button>
-        {saved && (
-          <p className="success-text" role="status">
-            Preferences saved on this device.
-          </p>
-        )}
-      </form>
-      <div className="profile-links">
-        <Link href="/trips">
-          Team trips
-          <ChevronRight size={17} />
-        </Link>
-        <Link href="/policies">
-          Company travel policy
-          <ChevronRight size={17} />
-        </Link>
-        <Link href="/design-system">
-          Shared UI
-          <ChevronRight size={17} />
-        </Link>
-      </div>
     </div>
   );
 }

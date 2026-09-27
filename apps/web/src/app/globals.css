@@ -2828,3 +2828,18 @@ td {
     transition-duration: 0s !important;
   }
 }
+
+/* Phase 1: reuse the workspace surfaces and form styles. */
+.login-layout { min-height: 100svh; display: grid; place-items: center; padding: 24px; }
+.login-panel { width: min(100%, 440px); padding: 32px; }
+.login-panel h1 { margin-bottom: 12px; }
+.managed-traveler { display: flex; flex-direction: column; gap: 16px; }
+.managed-traveler .person > div { min-width: 0; }
+.managed-traveler .badge { align-self: flex-start; }
+.managed-policy { max-width: 700px; }
+.managed-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.form-stack textarea { width: 100%; resize: vertical; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; }
+.empty-state { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; }
+.break-anywhere { overflow-wrap: anywhere; }
+.danger-text { color: hsl(var(--destructive)); }
+@media (max-width: 480px) { .managed-form-grid { grid-template-columns: 1fr; } .login-panel { padding: 24px; } }

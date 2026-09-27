@@ -21,7 +21,6 @@ import {
   Paperclip,
   Plane,
   PlaneTakeoff,
-  Search,
   ShieldCheck,
   SlidersHorizontal,
   Sparkles,
@@ -30,7 +29,6 @@ import {
 } from "lucide-react";
 import { Avatar, Badge, BudgetProgress } from "@repo/ui";
 import { Button } from "@repo/ui/button";
-import { formatTravelerSummary } from "@repo/core";
 import { travelers, travelerDetails, euro } from "@/lib/travel-data";
 import { Heading, IconBox, Modal } from "./travel-primitives";
 
@@ -809,99 +807,6 @@ export function TripPlan() {
           </Button>
         </Modal>
       )}
-    </div>
-  );
-}
-
-export function TravelersPage() {
-  const [query, setQuery] = useState("");
-  return (
-    <div className="stack">
-      <Heading
-        title="Travelers"
-        subtitle={formatTravelerSummary(travelers.length, "Berlin")}
-      >
-        <Button asChild>
-          <Link href="/trips/new">
-            <UserPlus size={16} />
-            Add to a trip
-          </Link>
-        </Button>
-      </Heading>
-      <label className="filter-input">
-        <Search size={16} />
-        <input
-          aria-label="Search travelers"
-          placeholder="Search travelers"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-      </label>
-      <div className="traveler-directory">
-        {travelers
-          .filter((t) =>
-            `${t.name} ${t.homeCity}`
-              .toLowerCase()
-              .includes(query.toLowerCase()),
-          )
-          .map((t) => (
-            <Link href="/trips/berlin" className="surface" key={t.id}>
-              <div className="person">
-                <Avatar>
-                  {t.name
-                    .split(" ")
-                    .map((p) => p[0])
-                    .join("")}
-                </Avatar>
-                <div>
-                  <h2>{t.name}</h2>
-                  <p className="muted">{t.homeCity} → Berlin</p>
-                </div>
-                <Badge tone="success">Synced</Badge>
-              </div>
-            </Link>
-          ))}
-        {!travelers.some((t) =>
-          `${t.name} ${t.homeCity}`.toLowerCase().includes(query.toLowerCase()),
-        ) && <p>No travelers found.</p>}
-      </div>
-    </div>
-  );
-}
-
-export function PoliciesPage() {
-  return (
-    <div className="stack">
-      <Heading
-        title="Company travel policy"
-        subtitle="Acme Europe · Version 4.2"
-      >
-        <Badge tone="success">Active</Badge>
-      </Heading>
-      <div className="policy-page">
-        <PolicyDetails />
-        <div className="inline-alert tone-success">
-          <ShieldCheck size={20} />
-          <div>
-            <strong>Policy compliant</strong>
-            <p>14 rules checked · 0 exceptions in the Berlin travel plan</p>
-          </div>
-        </div>
-        <h2>Policy exceptions</h2>
-        <div className="inline-alert tone-warning">
-          <ShieldCheck size={20} />
-          <span>
-            London Client Meeting: Heathrow departure preference requires a
-            manager review.
-          </span>
-        </div>
-        <Button asChild variant="outline">
-          <Link href="/trips">
-            View trips
-            <ArrowRight size={16} />
-          </Link>
-        </Button>
-      </div>
     </div>
   );
 }

@@ -24,9 +24,6 @@ export const screens: Record<string, Screen> = {
   "my-trip": "home",
   assistant: "assistant",
   itinerary: "itinerary",
-  travelers: "travelers",
-  policies: "policies",
-  profile: "profile",
   "design-system": "design-system",
 };
 
