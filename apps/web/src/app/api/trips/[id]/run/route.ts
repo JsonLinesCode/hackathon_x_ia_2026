@@ -15,7 +15,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     if (input.research) {
       await withTrip(user.id, id, async (store) => {
         if (!["options_ready", "awaiting_exception", "awaiting_travelers", "ready_to_book", "booking"].includes(store.state.trip.status) ||
-          store.state.actions.some((a) => ["executing", "executed", "failed"].includes(a.status))) throw new HttpError(409, "Existing quotes must be reconciled before restarting. Create a new trip if needed.");
+          store.state.actions.some((a) => a.status === "executing" || (a.kind === "book" && ["executed", "failed"].includes(a.status)))) throw new HttpError(409, "Existing quotes must be reconciled before restarting. Create a new trip if needed.");
         // Return via the defined graph; invalidates approvals and confirmations.
         if (store.state.trip.status !== "options_ready") store.next("options_ready");
         await store.save({ reset_plan: true, trip: { status: transitionTrip("options_ready", "searching"),

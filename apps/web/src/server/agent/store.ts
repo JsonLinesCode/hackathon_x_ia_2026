@@ -1,21 +1,21 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { ActionSchema, BookingSchema, PlanningStateSchema, PolicyRulesSchema, TripSchema, TripOptionSchema, TripTravelerSchema, TravelerRecordSchema, TimelineEventSchema, BookingDetailsSchema, type Action, type Booking, type Trip, type TripOption, type PlanningState, type PlanTraveler, type TimelineEvent } from "@repo/types";
+import { ActionSchema, BookingSchema, OutreachSchema, type Outreach, PlanningStateSchema, PolicyRulesSchema, TripSchema, TripOptionSchema, TripTravelerSchema, TravelerRecordSchema, TimelineEventSchema, BookingDetailsSchema, type Action, type Booking, type Trip, type TripOption, type PlanningState, type PlanTraveler, type TimelineEvent } from "@repo/types";
 import { transitionTrip } from "@repo/core";
 import { createServiceClient } from "../db";
 import { checkDatabase, HttpError } from "../http";
 
 export type EventInput = { actor?: TimelineEvent["actor"]; source?: string; title: string; detail?: string; data?: Record<string, unknown> };
-type TravelerChange = { traveler_id: string; confirmation_status?: PlanTraveler["confirmation_status"]; response_text?: string | null; booking_details?: PlanTraveler["booking_details"] };
+type TravelerChange = { traveler_id: string; confirmation_status?: PlanTraveler["confirmation_status"]; response_text?: string | null; booking_details?: PlanTraveler["booking_details"]; availability?: PlanTraveler["availability"] };
 export type Changes = {
   trip?: Partial<Trip> & { workflow?: PlanningState };
-  options?: TripOption[]; actions?: Action[]; bookings?: Booking[];
+  options?: TripOption[]; actions?: Action[]; bookings?: Booking[]; outreach?: Outreach[]; inbound_ids?: string[];
   travelers?: TravelerChange[]; events?: EventInput[]; reset_plan?: boolean; replace_travelers?: boolean;
 };
 export function planningDatabase(error: { code?: string; message?: string } | null) {
   if (error && ["42P01", "42703", "PGRST202", "PGRST204", "PGRST205"].includes(error.code ?? "")) {
-    throw new HttpError(503, "Phase 2 database setup is incomplete. Run supabase/migrations/0002_planning.sql after 0001_foundation.sql.");
+    throw new HttpError(503, "Database setup is incomplete. Apply numbered migrations through 0003_coordination.sql in order.");
   }
   if (error?.code === "P0001") throw new HttpError(409, "This trip changed or another step is running. Refresh before trying again.");
   checkDatabase(error);
@@ -26,7 +26,7 @@ export async function loadTrip(owner: string, id: string) {
   planningDatabase(tripResult.error);
   if (!tripResult.data) throw new HttpError(404, "Trip not found.");
   if (!Object.hasOwn(tripResult.data, "workflow")) throw new HttpError(503, "Run supabase/migrations/0002_planning.sql in Supabase.");
-  const [people, options, actions, bookings, timeline, directory, leases] = await Promise.all([
+  const [people, options, actions, bookings, timeline, directory, leases, outreach] = await Promise.all([
     db.from("trip_travelers").select("*").eq("owner_id", owner).eq("trip_id", id),
     db.from("trip_options").select("*").eq("owner_id", owner).eq("trip_id", id).order("rank"),
     db.from("actions").select("*").eq("owner_id", owner).eq("trip_id", id),
@@ -34,8 +34,9 @@ export async function loadTrip(owner: string, id: string) {
     db.from("timeline_events").select("*").eq("owner_id", owner).eq("trip_id", id).order("at").limit(1000),
     db.from("travelers").select("*").eq("owner_id", owner),
     db.from("trip_leases").select("expires_at").eq("owner_id", owner).eq("trip_id", id).maybeSingle(),
+    db.from("outreach").select("*").eq("owner_id", owner).eq("trip_id", id),
   ]);
-  [people, options, actions, bookings, timeline, directory, leases].forEach((result) => planningDatabase(result.error));
+  [people, options, actions, bookings, timeline, directory, leases, outreach].forEach((result) => planningDatabase(result.error));
   const records = TravelerRecordSchema.array().parse(directory.data);
   const travelers: PlanTraveler[] = z.array(TripTravelerSchema.extend({ booking_details: BookingDetailsSchema.nullable() })).parse(people.data)
     .map((person) => {
@@ -48,6 +49,7 @@ export async function loadTrip(owner: string, id: string) {
     travelers, directory: records,
     options: TripOptionSchema.array().parse(options.data), actions: ActionSchema.array().parse(actions.data),
     bookings: BookingSchema.array().parse(bookings.data), timeline: TimelineEventSchema.array().parse(timeline.data),
+    outreach: OutreachSchema.array().parse(outreach.data),
     running: !!leases.data && Date.parse(leases.data.expires_at) > Date.now(),
   };
 }
@@ -61,6 +63,7 @@ export function publicTrip(state: TripState) {
       error: action.result.error, checkout_url: action.result.checkout_url,
       expires_at: action.result.expires_at, quote_total_eur: action.result.quote_total_eur,
     } : null })),
+    outreach: state.outreach, coordination_done: state.workflow.coordination.post_booking_done,
     timeline: state.timeline, workflow_error: state.workflow.error, running: state.running,
   };
 }
@@ -68,7 +71,12 @@ export class TripStore {
   readonly db = createServiceClient();
   constructor(readonly owner: string, readonly id: string, readonly token: string, public state: TripState) {}
   async save(changes: Changes) {
-    const { error } = await this.db.rpc("phase2_commit", { p_trip: this.id, p_owner: this.owner, p_token: this.token, p_changes: changes });
+    // Partial traveler edits preserve booking details and availability.
+    if (changes.travelers) changes.travelers = changes.travelers.map((change) => {
+      const old = this.state.travelers.find((t) => t.traveler_id === change.traveler_id);
+      return { confirmation_status: old?.confirmation_status ?? "not_requested", response_text: old?.response_text ?? null, booking_details: old?.booking_details ?? null, availability: old?.availability ?? null, ...change };
+    });
+    const { error } = await this.db.rpc("phase3_commit", { p_trip: this.id, p_owner: this.owner, p_token: this.token, p_changes: changes });
     planningDatabase(error);
     // Reload after a commit so subsequent decisions always use persisted state.
     this.state = await loadTrip(this.owner, this.id);
@@ -79,7 +87,7 @@ export class TripStore {
     const { error } = await this.db.from("timeline_events").insert({ owner_id: this.owner, trip_id: this.id, title, detail, data, source, actor });
     planningDatabase(error);
   }
-  audit = (title: string, detail = "", data: Record<string, unknown> = {}) => this.event(title, detail, data, title.startsWith("OpenAI") ? "openai" : "jinko", "provider");
+  audit = (title: string, detail = "", data: Record<string, unknown> = {}) => this.event(title, detail, data, title.startsWith("OpenAI") ? "openai" : title.startsWith("Google") ? "google" : "jinko", "provider");
   next(status: Trip["status"]) { return transitionTrip(this.state.trip.status, status); }
   async policy() {
     const { data, error } = await this.db.from("policies").select("rules").eq("owner_id", this.owner).single();

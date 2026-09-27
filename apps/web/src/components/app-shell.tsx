@@ -24,6 +24,7 @@ import { Avatar } from "@repo/ui";
 import { Button } from "@repo/ui/button";
 import { cn } from "@repo/ui/utils";
 import { type Screen } from "@/lib/travel-data";
+import { SyncControl } from "./coordination-controls";
 import { Dashboard } from "./dashboard";
 import {
   CreateTrip,
@@ -269,6 +270,7 @@ export function AppShell({ screen = "overview", tripId }: { screen?: Screen; tri
             screen === "create" && "create-content",
           )}
         >
+          {screen !== "design-system" && <SyncControl />}
           {screen === "overview" && <Dashboard />}
           {screen === "trips" && <Dashboard tripsOnly />}
           {screen === "create" && <CreateTrip />}

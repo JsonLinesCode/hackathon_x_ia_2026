@@ -9,6 +9,7 @@ import { Button } from "@repo/ui/button";
 import { FlightDetailsSchema, HotelDetailsSchema, type Policy, type TravelerRecord, type TripDetail, type TripOption, type PlanTraveler } from "@repo/types";
 import { travelerCost } from "@repo/core";
 import { api, automatic, dateTime, euro, statusLabel, useTrip } from "@/lib/trip-client";
+import { ResponseReview } from "./coordination-controls";
 import { Heading, IconBox, Modal } from "./travel-primitives";
 
 export function PolicyDetails({ policy }: { policy: Policy | null }) {
@@ -55,7 +56,7 @@ export function CreateTrip() {
     </section>
     <div className="trip-fields">
       {[{ icon: MapPin, title: "Destination", detail: "From your request" }, { icon: CalendarDays, title: "Dates", detail: "Exact dates or relative dates" },
-        { icon: Clock3, title: "Schedules", detail: "Manually confirmed" }, { icon: WalletCards, title: "Budget", detail: "Per traveler or whole team" }].map((item) =>
+        { icon: Clock3, title: "Schedules", detail: "Calendar + confirmation" }, { icon: WalletCards, title: "Budget", detail: "Per traveler or whole team" }].map((item) =>
         <div key={item.title}><IconBox icon={item.icon} /><span><small>{item.title}</small><span>{item.detail}</span></span></div>)}
     </div>
     <section className="surface travelers-section">
@@ -112,7 +113,7 @@ export function Planning({ tripId }: { tripId: string }) {
   const searched = data.timeline.filter((e) => e.title === "Travel search saved").length;
   const ready = data.options.length > 0;
   const nodes = [
-    { icon: CalendarDays, name: "Calendar", detail: "Manual confirmation", tone: "neutral" as const },
+    { icon: CalendarDays, name: "Calendar", detail: data.travelers.filter((t) => t.availability).length + " calendars checked", tone: "neutral" as const },
     { icon: Plane, name: "Travel", detail: searched + " traveler searches saved", tone: searched ? "success" as const : "primary" as const },
     { icon: ShieldCheck, name: "Policy", detail: ready ? "Options evaluated" : "Waiting for offers", tone: ready ? "success" as const : "neutral" as const },
     { icon: GitCompareArrows, name: "Optimizer", detail: ready ? data.options.length + " ranked options" : "Cost × time × compliance", tone: ready ? "success" as const : "neutral" as const },
@@ -198,7 +199,7 @@ export function TripPlan({ tripId }: { tripId: string }) {
     <Heading title={data.trip.title} subtitle={[data.trip.destination, data.travelers.length + " travelers", timezone].filter(Boolean).join(" · ")}
       eyebrow={<Badge tone={data.trip.status === "booked" ? "success" : "primary"}>{statusLabel(data.trip.status)}</Badge>}>
       {data.bookings.length > 0 && <Button asChild variant="outline"><Link href={path.replace("/api", "") + "/itinerary"}>View itinerary<ArrowRight size={16} /></Link></Button>}
-      {!data.bookings.length && data.options.length > 0 && <Button variant="outline" disabled={locked || data.actions.some((a) => ["executing", "executed", "failed"].includes(a.status))}
+      {!data.bookings.length && data.options.length > 0 && <Button variant="outline" disabled={locked || data.actions.some((a) => a.status === "executing" || (a.kind === "book" && ["executed", "failed"].includes(a.status)))}
         onClick={() => void mutate(path + "/run", { research: true })}>Search again</Button>}
     </Heading>
     <ErrorNotice message={error} /><WorkflowIssue data={data} busy={busy} mutate={mutate} />
@@ -224,7 +225,7 @@ export function TripPlan({ tripId }: { tripId: string }) {
       </section>
       <aside className="dark-panel optimization"><small className="uppercase">Optimization summary</small><h2>{option.label}</h2>
         <p>{option.explanation}</p><dl className="summary-list"><div><dt>Total estimate</dt><dd>{euro(option.total_eur)}</dd></div><div><dt>Violations</dt><dd>{option.violations.length}</dd></div></dl>
-        <div className="dark-note"><ShieldCheck size={16} /><span>Search offers only. Traveler schedules require manual confirmation.</span></div>
+        <div className="dark-note"><ShieldCheck size={16} /><span>Search offers only. Calendar availability and traveler replies are tracked below.</span></div>
       </aside></div>
     </>}
     {data.trip.status === "awaiting_exception" && <section className="surface stack"><h2>Policy exception</h2><p>Obtain approval outside the app, then record it here for the selected option.</p>
@@ -233,14 +234,16 @@ export function TripPlan({ tripId }: { tripId: string }) {
         <label>Approval note (optional)<input value={note} maxLength={2000} onChange={(e) => setNote(e.target.value)} placeholder="Who approved the exception?" /></label>
         <label className="checkbox-label"><input required type="checkbox" />I have obtained approval for these exceptions.</label>
         <Button disabled={locked}>Exception approved</Button></form></section>}
-    {selected && <section className="surface"><div className="section-heading"><div><h2>Traveler confirmations</h2><p className="muted small">Record each traveler’s agreement manually. Calendar and email outreach are not connected yet.</p></div></div>
+    {selected && <section className="surface"><div className="section-heading"><div><h2>Traveler confirmations</h2><p className="muted small">Confirmation emails and replies are tracked here. Add travel document details before preparing quotes.</p></div></div>
       <div className="traveler-rows">{data.travelers.map((person) => <div className="traveler-row confirmation-row" key={person.traveler_id}>
         <div className="person"><Avatar>{person.traveler.full_name.slice(0, 1)}</Avatar><div><strong>{person.traveler.full_name}</strong><small>{person.traveler.email}</small></div></div>
         <Badge tone={person.confirmation_status === "confirmed" ? "success" : "neutral"}>{statusLabel(person.confirmation_status)}</Badge>
-        {data.trip.status === "awaiting_travelers" && <Button variant="outline" disabled={locked} onClick={() => setConfirming(person)}>{person.confirmation_status === "confirmed" ? "Edit confirmation" : "Confirm traveler"}</Button>}
+        {data.trip.status === "awaiting_travelers" && <Button variant="outline" disabled={locked} onClick={() => setConfirming(person)}>{person.booking_details ? "Edit details / confirmation" : "Add details / confirmation"}</Button>}
+        {person.confirmation_status === "pending" && <Button variant="outline" disabled={locked} onClick={() => void mutate(path + "/remind", { traveler_id: person.traveler_id })}>Remind</Button>}
       </div>)}</div></section>}
-    {data.actions.length > 0 && <section className="surface stack"><h2>Pending decisions</h2><p className="muted">Approval prepares a payment link. It does not pay or confirm a booking.</p>
-      {data.actions.map((action) => <div className="decision-row" key={action.id}><div><strong>{action.summary}</strong><p>{action.rationale}</p>
+    {data.travelers.filter((t) => ["needs_review", "counter_proposal", "declined"].includes(t.confirmation_status)).map((person) => <ResponseReview key={person.traveler_id + person.response_text} person={person} busy={locked} submit={(decision, message) => void mutate(path + "/review", { traveler_id: person.traveler_id, decision, message })} />)}
+    {data.actions.some((a) => a.gate === "needs_manager") && <section className="surface stack"><h2>Pending decisions</h2><p className="muted">Approval prepares a payment link. It does not pay or confirm a booking.</p>
+      {data.actions.filter((a) => a.gate === "needs_manager").map((action) => <div className="decision-row" key={action.id}><div><strong>{action.summary}</strong><p>{action.rationale}</p>
         <p>{action.cost_eur === null ? "Cost unknown" : euro(action.cost_eur)} · Reversible: {action.reversible ? "Yes" : "No"} · {statusLabel(action.status)}</p>
         <small>Offer deadline: {(() => { const p = selected?.per_traveler.find((i) => i.traveler_id === action.payload.traveler_id); const expires = p?.flight ? FlightDetailsSchema.parse(p.flight.details).expires_at : null; return expires ? dateTime(expires, timezone) : "Not provided; availability may change"; })()}</small>
         {typeof action.result?.error === "string" && <p role="alert">{action.result.error}</p>}</div>

@@ -2,7 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { ActionSchema, BookingDetailsSchema, BookingSchema, FlightDetailsSchema, HotelDetailsSchema, TravelerRecordSchema, type Action, type TripOption, type SearchResult } from "@repo/types";
-import { assertActionExecutable, assertBookingReady, buildBundles, classifyAction, effectivePolicy, evaluatePolicy, resolveRequest, travelerCost } from "@repo/core";
+import { assertActionExecutable, assertBookingReady, calendarConflicts, buildBundles, classifyAction, effectivePolicy, evaluatePolicy, resolveRequest, travelerCost } from "@repo/core";
 import { extractRequest, explainOptions } from "../../integrations/openai";
 import { withJinko } from "../../integrations/jinko";
 import { euroAmount } from "../../integrations/jinko-contract";
@@ -26,28 +26,30 @@ export async function understand(store: TripStore) {
   await store.save({
     trip: {
       title: request.title || request.destination || trip.title, destination: request.destination, extracted: request, meeting: request.meeting,
-      budget_per_traveler: request.budget_per_traveler, status: store.next(missing ? "needs_info" : "searching"),
-      workflow: { ...workflow, journey: resolved.journey, traveler_ids: workflow.traveler_ids, searches: {}, error: null },
+      budget_per_traveler: request.budget_per_traveler, status: store.next(missing ? "needs_info" : "checking_availability"),
+      workflow: { ...workflow, journey: resolved.journey, traveler_ids: workflow.traveler_ids, searches: {}, error: null, coordination: { ...workflow.coordination, meeting_checked: false, traveler_journeys: {}, replan_traveler: null } },
     },
     replace_travelers: true,
     travelers: [...new Set(resolved.travelerIds)].map((traveler_id) => ({ traveler_id, confirmation_status: "not_requested", booking_details: null })),
-    events: [{ title: missing ? "More information needed" : "Request understood", detail: missing ? request.missingFields.join(" ") : "Calendar checks are not available in this phase. Traveler confirmation will be recorded manually." }],
+    events: [{ title: missing ? "More information needed" : "Request understood", detail: missing ? request.missingFields.join(" ") : "The coordinator will check calendar availability and request traveler consent when needed." }],
   });
 }
 
 export async function searchNext(store: TripStore) {
   const { trip, workflow, travelers } = store.state;
   if (trip.status !== "searching") return;
-  const journey = workflow.journey;
+  let journey = workflow.journey;
   if (!journey || !trip.meeting || !trip.extracted) throw new HttpError(409, "The travel request is incomplete.");
   const person = travelers.find((t) => !workflow.searches[t.traveler_id]);
   if (person) {
+    journey = workflow.coordination.traveler_journeys[person.traveler_id] ?? journey;
+    const searchJourney = journey;
     await store.event("Searching for " + person.traveler.full_name, "One adult and one hotel room per traveler; at most two provider searches run concurrently.");
     const result = await withJinko(store.audit, async (jinko): Promise<SearchResult> => {
       // Two independent read operations, bounded to one traveler per persisted step.
       const settled = await Promise.allSettled([
-        journey.transport === "flight" ? jinko.searchFlights(person.traveler.home_airport, journey, trip.meeting!, trip.extracted!.language) : Promise.resolve(null),
-        journey.hotel_needed ? jinko.searchHotels(journey, trip.meeting!.timezone) : Promise.resolve(null),
+        searchJourney.transport === "flight" ? jinko.searchFlights(person.traveler.home_airport, searchJourney, trip.meeting!, trip.extracted!.language) : Promise.resolve(null),
+        searchJourney.hotel_needed ? jinko.searchHotels(searchJourney, trip.meeting!.timezone) : Promise.resolve(null),
       ]);
       for (const item of settled) if (item.status === "rejected") throw item.reason;
       const f = settled[0].status === "fulfilled" ? settled[0].value : null;
@@ -55,6 +57,9 @@ export async function searchNext(store: TripStore) {
       return { flights: f?.flights ?? [], hotels: h?.hotels ?? [], warnings: [...(f?.warnings ?? []), ...(h?.warnings ?? [])],
         raw: { flights: f?.raw ?? null, hotels: h?.raw ?? null }, searched_at: new Date().toISOString() };
     });
+    const available = result.flights.filter((flight) => calendarConflicts({ traveler_id: person.traveler_id, flight, hotel: null }, person).length === 0);
+    if (available.length !== result.flights.length) result.warnings.push("Flights conflicting with known calendar events were excluded.");
+    result.flights = available;
     if ((journey.transport === "flight" && !result.flights.length) || (journey.hotel_needed && !result.hotels.length)) {
       const fr = trip.extracted.language === "fr";
       const question = fr

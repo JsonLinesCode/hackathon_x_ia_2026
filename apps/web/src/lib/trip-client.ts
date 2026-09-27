@@ -12,7 +12,10 @@ export async function api<T>(path: string, body?: unknown, method = body === und
 }
 export function automatic(detail: TripDetail) {
   if (detail.workflow_error) return false;
-  if (["understanding", "searching"].includes(detail.trip.status)) return true;
+  if (["understanding", "checking_availability", "searching"].includes(detail.trip.status)) return true;
+  if (detail.actions.some((a) => a.gate === "auto" && ["proposed", "executing"].includes(a.status))) return true;
+  if (detail.trip.status === "booked" && !detail.coordination_done) return true;
+  if (detail.trip.status === "awaiting_travelers") return detail.travelers.some((t) => ["not_requested", "counter_proposal"].includes(t.confirmation_status)) || detail.travelers.every((t) => t.confirmation_status === "confirmed" && t.booking_details);
   const selectedId = detail.options.find((o) => o.selected)?.id;
   const actions = detail.actions.filter((a) => a.payload.option_id === selectedId);
   if (["ready_to_book", "booking"].includes(detail.trip.status)) return actions.some((a) => ["approved", "executing"].includes(a.status)) ||

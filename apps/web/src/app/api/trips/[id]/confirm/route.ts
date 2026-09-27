@@ -24,7 +24,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         confirmation_status: "confirmed", response_text: "Confirmed manually by the manager." }],
         trip: { workflow: { ...store.state.workflow, error: null } },
         events: [{ actor: "manager", title: "Traveler confirmed manually", detail: person.traveler.full_name, data: { traveler_id: person.traveler_id } }] });
-      if (store.state.travelers.every((t) => t.confirmation_status === "confirmed")) await prepareDecisions(store);
+      if (store.state.travelers.every((t) => t.confirmation_status === "confirmed" && t.booking_details)) await prepareDecisions(store);
     });
     return json(publicTrip(await loadTrip(user.id, id)));
   });

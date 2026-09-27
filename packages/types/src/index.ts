@@ -12,3 +12,5 @@ export type Traveler = z.infer<typeof TravelerSchema>;
 export * from "./domain";
 
 export * from "./planning";
+
+export * from "./coordination";

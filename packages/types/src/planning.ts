@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { IdSchema, MoneySchema, TimestampSchema, TimeZoneSchema, TripSchema, TripOptionSchema, TripTravelerSchema, TravelerRecordSchema, BookingSchema, ActionSchema, TimelineEventSchema, FlightSchema, HotelSchema } from "./domain";
+import { IdSchema, MoneySchema, TimestampSchema, TimeZoneSchema, TripSchema, TripOptionSchema, TripTravelerSchema, TravelerRecordSchema, BookingSchema, ActionSchema, TimelineEventSchema, FlightSchema, HotelSchema, OutreachSchema } from "./domain";
 
 export const CabinSchema = z.enum(["economy", "premium_economy", "business", "first"]);
 export const TimeWindowSchema = z.object({ earliest: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable(), latest: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable() });
@@ -62,6 +62,7 @@ export const PlanningStateSchema = z.object({
   searches: z.record(SearchResultSchema).default({}),
   error: z.string().nullable().default(null),
   attempt: z.number().int().nonnegative().default(0),
+  coordination: z.object({ meeting_checked: z.boolean().default(false), post_booking_done: z.boolean().default(false), replan_traveler: IdSchema.nullable().default(null), traveler_journeys: z.record(JourneySchema).default({}), calendar_events: z.record(z.string()).default({}), organizer_email: z.string().nullable().default(null) }).default({}),
 }).default({});
 export type PlanningState = z.infer<typeof PlanningStateSchema>;
 export const TripDetailSchema = z.object({
@@ -72,6 +73,8 @@ export const TripDetailSchema = z.object({
   bookings: BookingSchema.omit({ raw: true }).array(),
   actions: ActionSchema.array(),
   timeline: TimelineEventSchema.array(),
+  outreach: OutreachSchema.array().default([]),
+  coordination_done: z.boolean().default(false),
   workflow_error: z.string().nullable(),
   running: z.boolean(),
 });

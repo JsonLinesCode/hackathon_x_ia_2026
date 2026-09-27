@@ -4,17 +4,25 @@ import { IntegrationError } from "../integrations/errors";
 import { HttpError } from "../http";
 import { EnvironmentError } from "../env";
 import { withTrip, type TripStore } from "./store";
-import { understand, searchNext, prepareDecisions, quoteNext } from "./flows/plan-trip";
+import { understand, searchNext, quoteNext } from "./flows/plan-trip";
+
+import { executeCommunication } from "./notify";
+import { checkAvailability, confirmationNext, postBookingNext } from "./flows/confirmations";
+import { replanTraveler } from "./flows/counter-proposal";
 
 export async function runStep(store: TripStore, retry = false) {
   if (store.state.workflow.error && !retry) return;
   if (retry) await store.save({ trip: { workflow: { ...store.state.workflow, error: null } }, events: [{ actor: "manager", title: "Retry requested" }] });
   try {
+    if (await executeCommunication(store)) return;
     switch (store.state.trip.status) {
       case "understanding": await understand(store); break;
+      case "checking_availability": await checkAvailability(store); break;
+      case "booked": await postBookingNext(store); break;
       case "searching": await searchNext(store); break;
       case "awaiting_travelers":
-        if (store.state.travelers.length && store.state.travelers.every((t) => t.confirmation_status === "confirmed" && t.booking_details)) await prepareDecisions(store);
+        { const counter = store.state.travelers.find((t) => t.confirmation_status === "counter_proposal");
+          if (counter) await replanTraveler(store, counter.traveler_id); else await confirmationNext(store); }
         break;
       case "ready_to_book":
         if (store.state.actions.some((a) => a.status === "approved" && a.payload.option_id === store.state.options.find((o) => o.selected)?.id)) {

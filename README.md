@@ -250,3 +250,62 @@ Implementation references: [Supabase SSR](https://supabase.com/docs/guides/auth/
 [RLS](https://supabase.com/docs/guides/database/postgres/row-level-security),
 [OpenAI structured outputs](https://developers.openai.com/api/docs/guides/structured-outputs),
 [Jinko MCP](https://docs.gojinko.com/connect/mcp).
+
+
+## Phase 3 — Google coordination
+
+Apply **0003_coordination.sql** after 0002. It adds service-only, single-use
+OAuth state and sync leases, extends outreach checkpoints, and makes approved
+action payloads immutable. The only new dependency is google-auth-library;
+Calendar and Gmail use their documented REST APIs through server-only adapters.
+
+In Google Cloud, enable **Gmail API** and **Google Calendar API**. Keep the
+existing Supabase OAuth callback and add these **Authorized redirect URIs** to the
+same OAuth web client:
+- http://localhost:3000/api/google/traveler/callback
+- your APP_URL + /api/google/traveler/callback on Vercel
+
+Configure GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, APP_URL and APP_SECRET
+locally and in Vercel. In OAuth consent **Testing**, add the manager and every
+personal Gmail traveler as test users. Reconnect the manager from Settings to
+grant Calendar read/write and Gmail read/send scopes if not already granted.
+Travelers grant only identity/email and read-only Calendar access. Consent uses
+PKCE, a signed state, a browser-bound cookie, one-time consumption and verified
+Google email matching. Refresh tokens remain service-role-only.
+
+Manual acceptance:
+1. Create a trip using an existing Calendar meeting's exact title, location and
+   times. Check the matched event and availability entries in the timeline.
+2. With personal Gmail travelers, follow the consent email. Try a wrong Google
+   account, denied access, expired link and an address absent from Google test
+   users. None must silently grant access.
+3. Select a plan and resolve exceptions. Open the confirmation link in a private
+   browser without signing in. Only that traveler's itinerary is shown.
+4. Confirm by link, then test a plain-text Gmail reply and **Sync now**. Confident
+   confirmations/declines/counter-proposals are applied; ambiguous replies require
+   manager review. A counter-proposal searches only that traveler and preserves
+   the others' selected offers. A group meeting change needs manager clarification.
+5. Test **Remind** after two hours: same Gmail thread, original subject and
+   Message-ID references. Repeated clicks must not send another reminder.
+6. Supply real travel-document details (or record a manual confirmation), approve
+   quotes, then check tentative Calendar invitations and recap emails. Payment
+   links appear only in the manager's recap, never in traveler emails.
+7. Reload during sending. A saved message is reconciled using its Message-ID;
+   uncertain delivery is flagged rather than resent. Calendar IDs are stable.
+8. Revoke Google access: Settings should show reconnect required and the workflow
+   must surface the failure.
+
+Sync runs every 60 seconds while the app is open, or on **Sync now**. Gmail scans
+are paginated and inbound IDs are deduplicated. There is no background worker.
+Traveler links expire after seven days and stale itinerary links are rejected.
+After expiry, refresh the plan to send new confirmations. Unknown availability is
+explicit and confirmation asks the traveler to verify their own schedule.
+
+Automated tests cover classification thresholds, reminder boundaries, MIME/header
+safety, stable event IDs, ambiguous meeting matching, authenticated routes and
+interrupted-send reconciliation. The migration was tested locally; real Gmail
+delivery and Calendar invitations must be checked with your Google test accounts.
+References: [Gmail sending](https://developers.google.com/workspace/gmail/api/guides/sending),
+[Gmail threads](https://developers.google.com/workspace/gmail/api/guides/threads),
+[Calendar events](https://developers.google.com/workspace/calendar/api/v3/reference/events/insert),
+[OAuth web server flow](https://developers.google.com/identity/protocols/oauth2/web-server).

@@ -128,7 +128,8 @@ export type Action = z.infer<typeof ActionSchema>;
 export const OutreachSchema = z.object({
   id: IdSchema, owner_id: IdSchema, trip_id: IdSchema, traveler_id: IdSchema,
   purpose: z.enum(["calendar_access", "trip_confirmation", "info_request", "notification"]), channel: z.literal("email"),
-  status: z.enum(["sent", "responded", "expired"]), gmail_thread_id: z.string(), gmail_message_id: z.string(),
+  status: z.enum(["prepared", "sent", "responded", "expired", "failed"]), gmail_thread_id: z.string().nullable(), gmail_message_id: z.string().nullable(),
+  metadata: z.record(z.unknown()).default({}),
   sent_at: TimestampSchema, reminder_count: z.number().int().nonnegative(), last_reminder_at: TimestampSchema.nullable(),
 });
 export const TimelineEventSchema = z.object({
