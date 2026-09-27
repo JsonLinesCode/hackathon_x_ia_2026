@@ -63,17 +63,20 @@ export async function searchNext(store: TripStore) {
     const available = result.flights.filter((flight) => calendarConflicts({ traveler_id: person.traveler_id, flight, hotel: null }, person).length === 0);
     if (available.length !== result.flights.length) result.warnings.push("Flights conflicting with known calendar events were excluded.");
     result.flights = available;
-    if ((journey.transport === "flight" && !result.flights.length) || (journey.hotel_needed && !result.hotels.length)) {
-      const fr = trip.extracted.language === "fr";
-      const question = fr
-        ? "Aucune offre exploitable pour " + person.traveler.full_name + " avec ces dates et contraintes. Précisez d’autres dates ou contraintes ; l’inventaire Jinko peut être limité."
-        : "No usable offers for " + person.traveler.full_name + " on these dates and constraints. Provide alternative dates or constraints; Jinko inventory may be limited.";
-      await store.save({ trip: { status: store.next("needs_info"), extracted: { ...trip.extracted, missingFields: [question] } },
-        events: [{ title: "No matching offers", detail: question, data: { warnings: result.warnings } }] });
-      return;
-    }
     await store.save({ trip: { workflow: { ...workflow, searches: { ...workflow.searches, [person.traveler_id]: result } } },
       events: [{ title: "Travel search saved", detail: person.traveler.full_name + ": " + result.flights.length + " fares and " + result.hotels.length + " hotel rates.", data: { traveler_id: person.traveler_id, warnings: result.warnings } }] });
+    return;
+  }
+  // Empty inventory is a completed search, never a request for more details.
+  // Do not manufacture partial/free bundles when a required travel item is absent.
+  const incompleteInventory = travelers.some((person) => {
+    const request = workflow.coordination.traveler_journeys[person.traveler_id] ?? workflow.journey!;
+    const result = workflow.searches[person.traveler_id];
+    return !result || request.transport === "flight" && !result.flights.length || request.hotel_needed && !result.hotels.length;
+  });
+  if (incompleteInventory) {
+    await store.save({ trip: { status: store.next("options_ready"), extracted: { ...trip.extracted, missingFields: [] } }, options: [],
+      events: [{ title: "Search complete", detail: "No matching live offers were found for the whole team." }] });
     return;
   }
   const policy = effectivePolicy(await store.policy(), trip.budget_per_traveler);

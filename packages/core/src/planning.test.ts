@@ -26,12 +26,26 @@ describe("request resolution", () => {
     const result = resolveRequest(extraction, [person, { ...person, id: "22222222-2222-4222-8222-222222222222", full_name: "Alice Dupont", email: "other@example.com" }], [], new Date("2026-09-27T12:00:00Z"));
     expect(result.travelerIds).toEqual([]); expect(result.request.missingFields.join(" ")).toContain("e-mail");
   });
-  it("does not invent missing contact data or return dates, and surfaces unsupported constraints", () => {
+  it("does not invent contact data and ignores unsupported constraints", () => {
     const input = structuredClone(extraction); input.journey.return_date = null; input.journey.unsupported_constraints = ["Train only"];
     const result = resolveRequest(input, [], [], new Date("2026-09-27T12:00:00Z"));
     expect(result.newTravelers).toEqual([]);
-    expect(result.request.missingFields.join(" ")).toMatch(/retour/);
-    expect(result.request.missingFields.join(" ")).toMatch(/Train only/);
+    expect(result.request.missingFields).toEqual(["Qui voyage ?"]);
+    expect(result.journey.return_date).toBe("2026-09-30");
+    expect(result.journey.unsupported_constraints).toEqual([]);
+  });
+  it("only asks about missing travelers, destination, meeting date and start", () => {
+    const input = structuredClone(extraction);
+    input.missingFields = ["Clarify train and hotel", "Do you have a loyalty card?"];
+    input.constraints = ["Train only", "Vegetarian"];
+    input.meeting!.end_time = null; input.meeting!.location = "";
+    input.journey.return_date = null; input.journey.departure_date = null;
+    input.journey.hotel_needed = null; input.journey.transport = null;
+    input.journey.one_way = null; input.journey.unsupported_constraints = ["Train only"];
+    const result = resolveRequest(input, [person], [], new Date("2026-09-27T12:00:00Z"));
+    expect(result.request.missingFields).toEqual([]); expect(result.request.constraints).toEqual([]);
+    expect(result.request.meeting?.end).toBe("2026-09-29T14:00:00.000Z");
+    expect(result.journey).toMatchObject({ transport: "flight", one_way: false, return_date: "2026-09-30", hotel_query: "Berlin city centre", unsupported_constraints: [] });
   });
   it("creates only complete, explicitly supplied traveler records", () => {
     const input = structuredClone(extraction); input.travelers[0] = { name: "Alice Martin", email: "ALICE@example.com", home_city: "Paris", home_airport: "CDG" };

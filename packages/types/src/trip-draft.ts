@@ -10,11 +10,12 @@ export const RelativeJourneySchema = z.object({
   date: z.string().date().nullable(), weekday: z.number().int().min(0).max(6).nullable(),
   relative_day: z.number().int().min(-30).max(30).nullable(), part: PartOfDaySchema.nullable(), relative_to: z.literal("meeting"),
 });
-export const DraftFieldSchema = z.enum(["travelers", "add_traveler", "remove_traveler", "destination", "meeting_date", "meeting_start", "meeting_end", "venue", "outbound", "return", "hotel_nights", "budget", "cabin", "hotel_cap", "constraint", "remove_constraint", "note", "remove_note"]);
+export const DraftTimeWindowSchema = z.object({ earliest: z.string().nullable(), latest: z.string().nullable() });
+export const DraftFieldSchema = z.enum(["travelers", "add_traveler", "remove_traveler", "destination", "meeting_date", "meeting_start", "meeting_end", "meeting_duration", "venue", "outbound", "return", "hotel_nights", "budget", "cabin", "hotel_cap", "max_stops", "departure_window", "arrival_window", "refundable_only", "checked_bag_included", "constraint", "remove_constraint", "note", "remove_note"]);
 export type DraftField = z.infer<typeof DraftFieldSchema>;
 export const DraftChangeSchema = z.object({
   field: DraftFieldSchema,
-  value: z.union([z.string(), z.number(), z.array(z.string()), RelativeJourneySchema, z.null()]),
+  value: z.union([z.string(), z.number(), z.boolean(), z.array(z.string()), RelativeJourneySchema, DraftTimeWindowSchema.extend({ relative_to: z.literal("local_time") }), z.null()]),
   traveler_id: z.string().uuid().nullable(),
 });
 export type DraftChange = z.infer<typeof DraftChangeSchema>;
@@ -34,6 +35,11 @@ export const TripCardSchema = z.object({
   outbound: sourced(JourneyMomentSchema.nullable()), return: sourced(JourneyMomentSchema.nullable()),
   hotel_nights: sourced(z.number().int().min(0).max(60).nullable()),
   budget: sourced(z.number().positive().nullable()), cabin: sourced(z.enum(["economy", "premium_economy", "business", "first"])),
+  max_stops: sourced(z.number().int().min(0).max(2).nullable()).default({ value: null, source: "Default", reference: null }),
+  refundable_only: sourced(z.boolean()).default({ value: false, source: "Default", reference: null }),
+  checked_bag_included: sourced(z.boolean()).default({ value: false, source: "Default", reference: null }),
+  departure_window: sourced(DraftTimeWindowSchema.nullable()).default({ value: null, source: "Default", reference: null }),
+  arrival_window: sourced(DraftTimeWindowSchema.nullable()).default({ value: null, source: "Default", reference: null }),
   hotel_cap: sourced(z.number().positive()),
   class_rule: sourced(z.string()), arrival_margin: sourced(z.number()),
   transport: sourced(z.record(z.enum(["flight", "none"]))), round_trip: sourced(z.literal(true)),

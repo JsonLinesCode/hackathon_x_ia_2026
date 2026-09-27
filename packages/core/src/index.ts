@@ -26,3 +26,5 @@ export * from "./expenses";
 
 export * from "./trip-draft";
 export * from "./trip-cities";
+
+export * from "./draft-inputs";

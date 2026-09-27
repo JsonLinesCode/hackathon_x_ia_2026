@@ -37,7 +37,7 @@ describe("draft persistence and validation boundary", () => {
     await sendDraftMessage(store, "je veux changer le retour", key, 0);
     const args = rpc.mock.calls[0][1];
     expect(args.p_card.return).toEqual(store.state.trip.card!.return); expect(args.p_card.notes).toEqual([]);
-    expect(args.p_messages[1].quick_replies).toHaveLength(2); expect(args.p_changes).toEqual({});
+    expect(args.p_messages[1].quick_replies).toEqual([]); expect(args.p_messages[1].content).not.toContain("?"); expect(args.p_changes).toEqual({});
   });
   it("saves inline edits and their confirmations in the same transaction", async () => {
     const { store, rpc } = fixture();
@@ -74,4 +74,44 @@ describe("draft persistence and validation boundary", () => {
     await sendDraftMessage(store, "Alice à Berlin", key, 0, true, { [owner]: false });
     expect(rpc.mock.calls[0][1].p_card.travelers.value).toEqual([]);
   });
+});
+
+
+describe("non-essential input never creates a blocking status", () => {
+  it.each(["timeout", "invalid structured output", "no output"])("preserves the card and status after %s", async (reason) => {
+    const { store, rpc } = fixture();
+    deps.interpreter.mockRejectedValue(new Error(reason));
+    await sendDraftMessage(store, "finalement 14h", key, 0);
+    const args = rpc.mock.calls[0][1];
+    expect(args.p_card).toEqual(store.state.trip.card); expect(args.p_changes).toEqual({});
+    expect(args.p_messages[1].content).toContain("Réessayez");
+    expect(store.state.trip.status).toBe("awaiting_request_confirmation");
+  });
+  it.each(["Train uniquement", "Vegetarian", "Air France", "Hotel Adlon"])("validates a complete legacy card containing %s", async (value) => {
+    const { store, rpc } = fixture();
+    store.state.trip.card!.constraints = [{ value, source: "Stated", reference: null }];
+    expect(await validateDraft(store, 0, key)).toBe(true);
+    const args = rpc.mock.calls[0][1];
+    expect(args.p_changes.trip.status).toBe("checking_availability");
+    expect(args.p_card.constraints).toEqual([]);
+    expect(args.p_messages[1].content).not.toContain("?");
+  });
+  it.each(["travelers", "destination", "meeting_date", "meeting_start"] as const)("blocks only when %s is absent", async (field) => {
+    const { store, rpc } = fixture();
+    if (field === "travelers") store.state.trip.card!.travelers.value = [];
+    else store.state.trip.card![field].value = null;
+    expect(await validateDraft(store, 0, key)).toBe(false);
+    expect(rpc.mock.calls[0][1].p_changes).toEqual({});
+    expect(rpc.mock.calls[0][1].p_messages[1].content.match(/\?/g)).toHaveLength(1);
+  });
+});
+
+
+it("does not turn dietary details into notes even if the model returns a note intent", async () => {
+  const { store, rpc } = fixture();
+  deps.interpreter.mockResolvedValue({ language: "fr", intent: "note", confidence: 1, clarification: null, changes: [{ field: "note", value: "Il est végétarien", traveler_id: null }] });
+  await sendDraftMessage(store, "note qu'il est végétarien", key, 0);
+  const args = rpc.mock.calls[0][1];
+  expect(args.p_card.notes).toEqual([]); expect(args.p_changes).toEqual({});
+  expect(args.p_messages[1].content).not.toMatch(/\?|végétarien/);
 });

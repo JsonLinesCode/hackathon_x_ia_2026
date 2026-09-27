@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { ArrowRight, Check, Pencil, Send, UserPlus, X } from "lucide-react";
 import { Avatar, Badge } from "@repo/ui";
 import { Button } from "@repo/ui/button";
-import { TRIP_CITIES, changedDraftFields, draftIssues, requiredDraftFields, selectedDraftTravelers } from "@repo/core";
+import { TRIP_CITIES, changedDraftFields, draftValidation, usableDraftConstraint, selectedDraftTravelers } from "@repo/core";
 import type { DraftChange, DraftField, FieldSource, JourneyMoment, TravelerRecord, TripCard, TripDetail, TripMessage } from "@repo/types";
 import { api, useTrip } from "@/lib/trip-client";
 import { PlanningProgress } from "./trip-workspace";
@@ -96,7 +96,7 @@ function DraftConversation({ id, people, profile }: { id: string; people: Travel
     <aside className="draft-right-panel">{validated ? <section className="surface stack"><div className="between"><h2>Planning progress</h2><Badge tone="success">Validated</Badge></div><PlanningProgress data={data} />
       {data.workflow_error && <><p role="alert" className="danger-text">{data.workflow_error}</p><Button variant="outline" onClick={() => void mutate("/api/trips/" + id + "/run", { retry: true })}>Retry step</Button></>}
       {data.options.length > 0 ? <Button asChild><Link href={"/trips/" + id}>See options<ArrowRight size={16} /></Link></Button> : <p className="muted small">Availability and search progress are saved automatically.</p>}
-      {data.trip.status === "needs_info" && <Button asChild variant="outline"><Link href={"/trips/" + id + "/planning"}>Review search feedback</Link></Button>}
+      {data.trip.status === "options_ready" && !data.options.length && <p className="muted small">Search complete. No matching live offers were found.</p>}
     </section> : <LiveTripCard card={card} people={people} busy={busy} changed={changed} edit={(changes) => update("card", { changes })} validate={() => void update("validate", {})} />}</aside>
   </div>;
 }
@@ -123,9 +123,10 @@ function CardField({ label, field: name, entry, type = "text", required = false,
     </form> : readonly ? <span className="draft-field-value">{display}</span> : <button className={"draft-field-value " + (missing || dependency && entry.value === null ? "muted" : "")} type="button" onClick={open} disabled={busy} aria-label={"Edit " + label}><span>{display}</span><Pencil size={13} /></button>}
   </div>;
 }
-function LiveTripCard({ card, people, busy, changed, edit, validate }: { card: TripCard; people: TravelerRecord[]; busy: boolean; changed: string[]; edit: (changes: DraftChange[]) => Promise<boolean>; validate: () => void }) {
-  const missing = requiredDraftFields(card), issues = draftIssues(card), common = { changed, busy, edit };
-  return <section className="surface draft-card" aria-label="Live trip card"><div className="draft-card-title"><div><small className="uppercase">PROPOSED TRIP</small><h2>{card.destination.value ? "Meeting in " + card.destination.value : "Your trip"}</h2></div><Badge tone={missing.length || issues.length ? "warning" : "success"}>{missing.length ? missing.length + " required missing" : issues.length ? "Review required" : "Ready to validate"}</Badge></div>
+export function LiveTripCard({ card, people, busy, changed, edit, validate }: { card: TripCard; people: TravelerRecord[]; busy: boolean; changed: string[]; edit: (changes: DraftChange[]) => Promise<boolean>; validate: () => void }) {
+  const { missing, canValidate } = draftValidation(card), common = { changed, busy, edit };
+  const constraints = card.constraints.filter((entry) => usableDraftConstraint(entry.value));
+  return <section className="surface draft-card" aria-label="Live trip card"><div className="draft-card-title"><div><small className="uppercase">PROPOSED TRIP</small><h2>{card.destination.value ? "Meeting in " + card.destination.value : "Your trip"}</h2></div><Badge tone={missing.length ? "warning" : "success"}>{missing.length ? missing.length + " required missing" : "Ready to validate"}</Badge></div>
     <p className="muted small">Review the proposal. Search starts only after your validation.</p>
     <section className={"draft-card-section " + (changed.includes("travelers") ? "draft-changed" : "")}><div className="between"><h3>Travelers{!card.travelers.value.length && <span className="danger-text"> *</span>}</h3><Source source={card.travelers.source} /></div>
       {!card.travelers.value.length && <p className="muted small">to complete</p>}<Team people={people} selected={card.travelers.value} disabled={busy} onToggle={(id) => void edit([change(card.travelers.value.includes(id) ? "remove_traveler" : "add_traveler", id, id)])} /></section>
@@ -141,11 +142,16 @@ function LiveTripCard({ card, people, busy, changed, edit, validate }: { card: T
     <section className="draft-card-section"><h3>Rules</h3><CardField {...common} label="Budget / traveler (€)" field="budget" entry={card.budget} type="number" />
       <CardField {...common} label="Requested class" field="cabin" entry={card.cabin} type="cabin" /><div className="draft-readonly"><small>{card.class_rule.value}</small><Source source={card.class_rule.source} reference={card.class_rule.reference} /></div>
       <CardField {...common} label="Hotel cap (€ / night)" field="hotel_cap" entry={card.hotel_cap} readonly /><div className="draft-readonly"><small>Arrive {card.arrival_margin.value} min before the meeting</small><Source source={card.arrival_margin.source} /></div>
-      <div className={changed.includes("constraints") ? "draft-changed" : ""}>{card.constraints.map((c) => <div className="draft-removable" key={c.value}><span>{c.value}<Source source={c.source} /></span><button type="button" aria-label={"Remove constraint: " + c.value} disabled={busy} onClick={() => void edit([change("remove_constraint", c.value)])}><X size={14} /></button></div>)}</div>
-      {!card.constraints.length && <p className="muted small">No additional constraints stated.</p>}
+      <div className={changed.includes("constraints") ? "draft-changed" : ""}>{constraints.map((c) => <div className="draft-removable" key={c.value}><span>{c.value}<Source source={c.source} /></span><button type="button" aria-label={"Remove constraint: " + c.value} disabled={busy} onClick={() => void edit([change("remove_constraint", c.value)])}><X size={14} /></button></div>)}</div>
+      <CardField {...common} label="Maximum stops" field="max_stops" entry={card.max_stops} type="number" />
+      {(["refundable_only", "checked_bag_included", "departure_window", "arrival_window"] as const).map((key) => {
+        const entry = card[key]; if (!entry.value) return null;
+        const label = { refundable_only: "Refundable fares", checked_bag_included: "Checked bag included", departure_window: "Departure time", arrival_window: "Arrival time" }[key];
+        const detail = typeof entry.value === "object" ? [entry.value.earliest && "from " + entry.value.earliest, entry.value.latest && "until " + entry.value.latest].filter(Boolean).join(" ") : "";
+        return <div className={"draft-removable " + (changed.includes(key) ? "draft-changed" : "")} key={key}><span>{label} {detail}<Source source={entry.source} /></span><button type="button" aria-label={"Remove " + label} disabled={busy} onClick={() => void edit([change(key, null)])}><X size={14} /></button></div>;
+      })}
     </section>
     {card.notes.length > 0 && <section className={"draft-card-section " + (changed.includes("notes") ? "draft-changed" : "")}><h3>Notes</h3>{card.notes.map((n) => <div className="draft-removable" key={n.value}><span>{n.value}<Source source={n.source} /></span><button type="button" aria-label={"Remove note: " + n.value} disabled={busy} onClick={() => void edit([change("remove_note", n.value)])}><X size={14} /></button></div>)}</section>}
-    {issues.map((issue) => <p key={issue} className="warning-text small">{issue}</p>)}
-    <Button className="full-width draft-validate" disabled={busy} aria-disabled={missing.length > 0 || issues.length > 0} onClick={validate}>Validate and search<ArrowRight size={16} /></Button>
+    <Button className="full-width draft-validate" disabled={busy} aria-disabled={!canValidate} onClick={validate}>Validate and search<ArrowRight size={16} /></Button>
   </section>;
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_POLICY, type DraftChange, type DraftIntent, type TravelerRecord } from "@repo/types";
-import { applyDraftChanges, blankTripCard, cardToValidatedPlan, detectedTravelers, draftIssues, draftSearchConstraints, filterDraftReturnFlights, interpretDraft, requiredDraftFields, resolveJourneyMoment, selectedDraftTravelers } from "./trip-draft";
+import { applyDraftChanges, blankTripCard, cardToValidatedPlan, detectedTravelers, draftSummary, draftValidation, draftSearchConstraints, filterDraftReturnFlights, interpretDraft, requiredDraftFields, resolveJourneyMoment, selectedDraftTravelers } from "./trip-draft";
 
 const id = "11111111-1111-4111-8111-111111111111", second = "22222222-2222-4222-8222-222222222222";
 const directory: TravelerRecord[] = [{ id, owner_id: id, full_name: "Alice Martin", email: "alice@example.test", home_city: "Paris", home_airport: "CDG", preferences: { seat: "none", notes: "" }, calendar_access: "unknown", created_at: "2026-09-27T10:00:00Z" }];
@@ -101,23 +101,23 @@ describe("selection and safe interpretation", () => {
     expect(interpretDraft(ready(), intent, "je veux changer", directory).card.meeting_start.value).toBe("10:00");
     const note = { ...intent, intent: "note" as const, confidence: .99, changes: [change("note", "changer le retour")] };
     expect(interpretDraft(ready(), note, "je veux changer le retour", directory).card.notes).toEqual([]);
-    expect(interpretDraft(ready(), note, "Ajoute une note : changer le retour", directory).card.notes).toHaveLength(1);
+    expect(interpretDraft(ready(), note, "Ajoute une note : changer le retour", directory).card.notes).toEqual([]);
   });
   it("does not launch or mutate the card for a validate intent", () => {
     const intent: DraftIntent = { language: "fr", intent: "validate", changes: [], confidence: 1, clarification: null };
     expect(interpretDraft(ready(), intent, "valide", directory).card.validated_at).toBeNull();
   });
-  it("rejects conflicting dates on validation and never searches an incomplete card", () => {
-    expect(() => cardToValidatedPlan(blankTripCard(DEFAULT_POLICY), directory, now)).toThrow(/required/);
+  it("ignores conflicting optional dates and only blocks incomplete essentials", () => {
+    expect(() => cardToValidatedPlan(blankTripCard(DEFAULT_POLICY), directory)).toThrow(/required/);
     const card = applyDraftChanges(ready(), [change("return", relative({ relative_day: -1 }))], directory, "Edited");
-    expect(draftIssues(card)).not.toEqual([]); expect(() => cardToValidatedPlan(card, directory, now)).toThrow(/Return/);
+    expect(cardToValidatedPlan(card, directory).journey.return_date).toBe("2026-10-06");
   });
-  it("requests clarification for ambiguous local times instead of failing validation unexpectedly", () => {
+  it("resolves DST overlaps without introducing another validation gate", () => {
     const card = applyDraftChanges(ready(), [change("meeting_date", "2026-10-25"), change("meeting_start", "02:30")], directory, "Edited", now);
-    expect(() => cardToValidatedPlan(card, directory, now)).toThrow(/ambiguous.*destination time zone/);
+    expect(cardToValidatedPlan(card, directory).meeting.start).toBe("2026-10-25T00:30:00.000Z");
   });
   it("builds the existing availability workflow without calendar meeting lookup", () => {
-    const plan = cardToValidatedPlan(ready(), directory, now);
+    const plan = cardToValidatedPlan(ready(), directory);
     expect(plan.workflow.coordination.meeting_checked).toBe(true); expect(plan.meeting.google_event_id).toBeNull();
     expect(plan.meeting.start).toBe("2026-10-06T08:00:00.000Z"); expect(plan.workflow.searches).toEqual({});
     expect(plan.journey.one_way).toBe(false); expect(plan.journey.departure_window).toEqual({ earliest: "18:00", latest: "23:59" });
@@ -125,12 +125,13 @@ describe("selection and safe interpretation", () => {
 });
 
 describe("validated draft constraints", () => {
-  it("turns supported constraints into existing search filters and blocks unsupported requirements", () => {
+  it("maps usable constraints and ignores unsupported details without rows or gates", () => {
     const direct = applyDraftChanges(ready(), [change("constraint", "Vol direct"), change("constraint", "Bagage en soute inclus")], directory, "Stated");
-    expect(draftSearchConstraints(direct)).toMatchObject({ max_stops: 0, checked_bag_included: true, unsupported: [] });
-    expect(cardToValidatedPlan(direct, directory, now).journey.max_stops).toBe(0);
+    expect(draftSearchConstraints(direct)).toMatchObject({ max_stops: 0, checked_bag_included: true });
+    expect(cardToValidatedPlan(direct, directory).journey.max_stops).toBe(0);
     const unsupported = applyDraftChanges(direct, [change("constraint", "Train uniquement")], directory, "Edited");
-    expect(() => cardToValidatedPlan(unsupported, directory, now)).toThrow(/Train uniquement/);
+    expect(unsupported.constraints).toEqual(direct.constraints);
+    expect(cardToValidatedPlan(unsupported, directory).journey.unsupported_constraints).toEqual([]);
   });
   it("checks the selected return period in the destination time zone without changing provider data", () => {
     const flights = [
@@ -141,4 +142,57 @@ describe("validated draft constraints", () => {
     expect(filterDraftReturnFlights(flights, ready(), "Europe/Berlin")).toEqual([flights[0]]);
     expect(flights).toHaveLength(3);
   });
+});
+
+
+describe("only four essentials can block a draft", () => {
+  it.each(Array.from({ length: 16 }, (_, mask) => mask))("guards every combination of required fields (mask %i)", (mask) => {
+    const card = ready();
+    if (mask & 1) card.travelers.value = [];
+    if (mask & 2) card.destination.value = null;
+    if (mask & 4) card.meeting_date.value = null;
+    if (mask & 8) card.meeting_start.value = null;
+    card.constraints.push({ value: "Train only, vegetarian, named hotel, loyalty", source: "Stated", reference: null });
+    const validation = draftValidation(card);
+    expect(validation.canValidate).toBe(mask === 0);
+    expect((validation.question.match(/\?/g) ?? []).length).toBe(mask ? 1 : 0);
+    if (mask) expect(() => cardToValidatedPlan(card, directory)).toThrow(/required/);
+    else expect(cardToValidatedPlan(card, directory).workflow.journey?.unsupported_constraints).toEqual([]);
+  });
+  it.each(["Train uniquement", "Air France", "Hotel Adlon", "Flying Blue", "vegetarien", "bonjour !!!"])("does not retain or ask about %s", (text) => {
+    const before = ready();
+    const card = applyDraftChanges(before, [change("constraint", text)], directory, "Edited");
+    expect(card.constraints).toEqual([]); expect(card.notes).toEqual([]);
+    expect(draftSummary(before, card, directory)).not.toContain("?");
+    expect(draftValidation(card).canValidate).toBe(true);
+    expect(cardToValidatedPlan(card, directory).journey.unsupported_constraints).toEqual([]);
+  });
+  it("ignores malformed optional values without losing usable changes in the same message", () => {
+    const intent: DraftIntent = { language: "fr", intent: "edit", confidence: .99, clarification: null, changes: [change("meeting_start", "10 h 30"), change("return", "nonsense"), change("budget", -10), change("cabin", "luxury"), change("constraint", "vegetarian")] };
+    const card = interpretDraft(ready(), intent, "10 h 30, plein de details", directory).card;
+    expect(card.meeting_start.value).toBe("10:30"); expect(card.budget.value).toBeNull();
+    expect(card.notes).toEqual([]); expect(card.constraints).toEqual([]);
+    expect(cardToValidatedPlan(card, directory).meeting.end).toBe("2026-10-06T10:30:00.000Z");
+  });
+  it("maps duration, end time, fares, stops and windows into the existing search contract", () => {
+    const card = applyDraftChanges(ready(), [change("meeting_duration", 180), change("max_stops", 1), change("refundable_only", true), change("checked_bag_included", true), change("departure_window", { earliest: "7h", latest: null, relative_to: "local_time" }), change("arrival_window", { earliest: null, latest: "9 h 30", relative_to: "local_time" })], directory, "Edited");
+    expect(card.meeting_end.value).toBe("13:00");
+    const plan = cardToValidatedPlan(card, directory);
+    expect(plan.journey).toMatchObject({ max_stops: 1, refundable_only: true, checked_bag_included: true, departure_window: { earliest: "07:00", latest: null }, arrival_window: { earliest: null, latest: "09:30" }, hotel_query: "Berlin city centre", one_way: false });
+    expect(applyDraftChanges(card, [change("meeting_end", "17h")], directory, "Edited").meeting_end.value).toBe("17:00");
+    expect(draftSummary(ready(), card, directory)).toContain("07:00");
+    expect(draftValidation(card).canValidate).toBe(true);
+  });
+  it("accepts past supplied dates without adding a fifth validation gate", () => {
+    const card = applyDraftChanges(ready(), [change("meeting_date", "2020-10-06")], directory, "Edited");
+    expect(cardToValidatedPlan(card, directory).meeting.start).toBe("2020-10-06T08:00:00.000Z");
+  });
+});
+
+
+it("preserves an explicit clock limit if the model omits the optional field", () => {
+  const intent: DraftIntent = { language: "fr", intent: "edit", confidence: 1, clarification: null, changes: [change("meeting_start", "10:30")] };
+  const card = interpretDraft(ready(), intent, "organise deplacement a berlin 10h30 pas de vol avant 7h", directory).card;
+  expect(cardToValidatedPlan(card, directory).journey.departure_window?.earliest).toBe("07:00");
+  expect(draftSummary(ready(), card, directory)).toContain("07:00");
 });

@@ -1,7 +1,7 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { TripCardSchema, TripMessageSchema, type DraftChange, type TripCard, type TripMessage } from "@repo/types";
-import { applyDraftChanges, cardToValidatedPlan, DRAFT_LABELS, DraftError, draftSummary, draftIssues, interpretDraft, requiredDraftFields, shiftDay } from "@repo/core";
+import { applyDraftChanges, cardToValidatedPlan, DraftError, draftSummary, draftValidation, interpretDraft, normalizeDraftCard } from "@repo/core";
 import { HttpError } from "../http";
 import { createServiceClient } from "../db";
 import { loadTrip, planningDatabase, publicTrip, type Changes, type TripStore } from "./store";
@@ -29,26 +29,14 @@ async function save(store: TripStore, card: TripCard, messages: TripMessage[], c
   planningDatabase((await store.db.rpc("trip_draft_commit", { p_trip: store.id, p_owner: store.owner, p_token: store.token,
     p_revision: card.revision, p_card: card, p_messages: messages, p_changes: changes })).error);
 }
-function clarification(card: TripCard) {
-  const fr = card.language === "fr", day = card.meeting_date.value;
-  return { question: fr ? "Quel changement souhaitez-vous ? Choisissez une proposition ou précisez le champ et sa nouvelle valeur." : "What would you like to change? Choose a proposal or specify a field and its new value.",
-    options: day ? [fr ? `Retour le ${day} soir` : `Return ${day} evening`, fr ? `Retour le ${shiftDay(day, 1)} matin` : `Return ${shiftDay(day, 1)} morning`] : [fr ? "La réunion est demain à 10h" : "The meeting is tomorrow at 10:00", fr ? "La réunion est demain à 14h" : "The meeting is tomorrow at 14:00"] };
-}
 export async function validateDraft(store: TripStore, revision: number, key: string, history?: TripMessage[], preceding?: TripMessage[]) {
   const messages = history ?? await draftMessages(store.owner, store.id);
   if (messages.some((m) => m.id === key)) return false;
-  const card = cardFrom(store, revision), fr = card.language === "fr";
-  const missing = requiredDraftFields(card);
-  let problem = missing.length ? (fr ? "Avant de valider, complétez " : "Before validating, complete ") + missing.map((k) => DRAFT_LABELS[k][fr ? 1 : 0]).join(", ") + "." : "";
-  const issues = draftIssues(card);
-  if (!problem && issues.length) problem = fr ? "Vérifiez les dates et précisez les contraintes non prises en charge dans la carte avant la recherche." : issues.join(" ");
-  let plan: ReturnType<typeof cardToValidatedPlan> | null = null;
-  if (!problem) {
-    try { plan = cardToValidatedPlan(card, store.state.directory); }
-    catch (error) { if (!(error instanceof DraftError)) throw error; problem = fr ? "La proposition contient des dates incompatibles ou passées. Vérifiez les dates de réunion, d’aller et de retour." : error.message; }
-  }
+  const card = normalizeDraftCard(cardFrom(store, revision), store.state.directory), fr = card.language === "fr";
+  const validation = draftValidation(card);
+  const plan = validation.canValidate ? cardToValidatedPlan(card, store.state.directory) : null;
   const start = preceding ?? [message(store, "user", fr ? "Valider et rechercher" : "Validate and search", [], key)];
-  if (!plan) { await save(store, card, [...start, message(store, "agent", problem, [], randomUUID(), 1)]); return false; }
+  if (!plan) { await save(store, card, [...start, message(store, "agent", validation.question, [], randomUUID(), 1)]); return false; }
   const validated = { ...card, validated_at: new Date().toISOString() };
   await save(store, validated, [...start, message(store, "agent", fr ? "Demande validée. Je vérifie les disponibilités, puis recherche les offres. Aucune réservation n’est effectuée." : "Request validated. I’m checking availability, then searching for offers. No booking is made.", [], randomUUID(), 1)], {
     trip: { status: store.next("checking_availability"), title: plan.request.title, destination: plan.request.destination,
@@ -62,25 +50,23 @@ export async function sendDraftMessage(store: TripStore, content: string, key: s
   const history = await draftMessages(store.owner, store.id);
   if (history.some((m) => m.id === key)) return false;
   const before = cardFrom(store, revision);
-  const intent = await interpretTripMessage(content, before, store.state.directory, history, store.audit);
   const userMessage = message(store, "user", content, [], key);
+  let intent;
+  try { intent = await interpretTripMessage(content, before, store.state.directory, history, store.audit); }
+  catch {
+    const fr = before.language === "fr" || /\b(?:je|reunion|réunion|organise|deplacement|déplacement|retour|demain|ajoute|retire)\b/i.test(content);
+    await save(store, before, [userMessage, message(store, "agent", fr
+      ? "Je n’ai pas pu lire ce message. Réessayez : votre demande est conservée."
+      : "I couldn’t read that message. Please try again; your trip details are unchanged.", [], randomUUID(), 1)]);
+    return false;
+  }
   if (intent.intent === "validate" && intent.confidence >= 0.85 && !first) return validateDraft(store, revision, key, history, [userMessage]);
   if (first) {
     intent.changes = intent.changes.filter((c) => c.field !== "remove_traveler" && c.field !== "travelers" && !(c.field === "add_traveler" && overrides[c.traveler_id ?? String(c.value)] === false));
   }
-  let card = { ...before, language: intent.language }, response = "", replies: string[] = [];
-  try {
-    const result = interpretDraft(before, intent, content, store.state.directory, new Date(), first);
-    card = result.card;
-    if (result.applied) response = draftSummary(before, card, store.state.directory);
-    else { const q = intent.clarification ?? clarification(card); response = q.question; replies = q.options; }
-  } catch (error) {
-    if (!(error instanceof DraftError) && !(error instanceof Error && error.name === "ZodError")) throw error;
-    const q = clarification(card);
-    response = (card.language === "fr" ? "Aucune modification appliquée. Vérifiez les voyageurs et les valeurs dans la carte. " : "No changes applied. Check the travelers and values in the card. ") + q.question;
-    replies = q.options;
-  }
-  await save(store, card, [userMessage, message(store, "agent", response, replies, randomUUID(), 1)]);
+  const { card } = interpretDraft(before, intent, content, store.state.directory, new Date(), first);
+  // Only deterministic questions about absent essentials reach the conversation.
+  await save(store, card, [userMessage, message(store, "agent", draftSummary(before, card, store.state.directory), [], randomUUID(), 1)]);
   return false;
 }
 export async function editDraftCard(store: TripStore, changes: DraftChange[], key: string, revision: number) {
@@ -88,7 +74,7 @@ export async function editDraftCard(store: TripStore, changes: DraftChange[], ke
   if (history.some((m) => m.id === key)) return;
   const before = cardFrom(store, revision);
   let card: TripCard;
-  try { card = applyDraftChanges(before, changes, store.state.directory, "Edited", new Date(), false); }
+  try { card = applyDraftChanges(before, changes, store.state.directory, "Edited", new Date()); }
   catch (error) { if (error instanceof DraftError) throw new HttpError(400, error.message); throw error; }
   const describe = changes.map((c) => {
     if (["add_traveler", "remove_traveler"].includes(c.field)) return c.field.replaceAll("_", " ") + " · " + (store.state.directory.find((p) => p.id === (c.traveler_id ?? c.value))?.full_name ?? "traveler");

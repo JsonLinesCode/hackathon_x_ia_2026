@@ -7,9 +7,9 @@ import { ReceiptExtractionSchema, RequestExtractionSchema, ReplyClassificationSc
 import { getEnv } from "../env";
 import { IntegrationError, type Audit } from "./errors";
 
-export async function structured<T extends z.ZodTypeAny>(schema: T, name: string, instructions: string, input: unknown, audit: Audit, attachment?: { mime: string; data: string }): Promise<z.infer<T>> {
+export async function structured<T extends z.ZodTypeAny>(schema: T, name: string, instructions: string, input: unknown, audit: Audit, attachment?: { mime: string; data: string }, options: { timeout?: number; maxRetries?: number } = {}): Promise<z.infer<T>> {
   const env = getEnv(["OPENAI_API_KEY", "OPENAI_MODEL"]);
-  const client = new OpenAI({ apiKey: env.OPENAI_API_KEY, timeout: 60000, maxRetries: 1 });
+  const client = new OpenAI({ apiKey: env.OPENAI_API_KEY, timeout: 60000, maxRetries: 1, ...options });
   await audit("OpenAI: " + name, "Structured request started.", { model: env.OPENAI_MODEL });
   try {
     const result = await client.responses.parse({

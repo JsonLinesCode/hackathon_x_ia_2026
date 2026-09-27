@@ -46,7 +46,7 @@ export function resolveRelativeDate(text: string, now = new Date(), timeZone = "
 }
 
 // Reject nonexistent and ambiguous wall times around DST rather than guessing.
-export function zonedDateTimeToUtc(date: string, time: string, timeZone = "Europe/Paris"): string {
+export function zonedDateTimeToUtc(date: string, time: string, timeZone = "Europe/Paris", disambiguation: "reject" | "compatible" = "reject"): string {
   TimeZoneSchema.parse(timeZone);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time)) {
     throw new Error("Use YYYY-MM-DD and HH:mm");
@@ -57,14 +57,21 @@ export function zonedDateTimeToUtc(date: string, time: string, timeZone = "Europ
     timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
   });
   const matches: string[] = [];
+  const afterGap: { wall: number; instant: string }[] = [];
   // Includes quarter-hour offsets and both sides of daylight-saving transitions.
   for (let offset = -14 * 60; offset <= 14 * 60; offset += 15) {
     const candidate = new Date(target - offset * 60000);
     const parts = formatter.formatToParts(candidate);
     const get = (type: string) => parts.find((part) => part.type === type)!.value;
+    const wall = Date.parse(get("year") + "-" + get("month") + "-" + get("day") + "T" + get("hour") + ":" + get("minute") + ":00Z");
+    if (wall > target && wall <= target + 3600000) afterGap.push({ wall, instant: candidate.toISOString() });
     if (get("year") + "-" + get("month") + "-" + get("day") === date && get("hour") + ":" + get("minute") === time) {
       matches.push(candidate.toISOString());
     }
+  }
+  if (disambiguation === "compatible") {
+    if (matches.length) return matches.sort()[0];
+    if (afterGap.length) return afterGap.sort((a, b) => b.wall - a.wall)[0].instant;
   }
   if (matches.length !== 1) throw new Error(matches.length ? "Ambiguous local time; specify an offset." : "This local time does not exist.");
   return matches[0];

@@ -289,8 +289,8 @@ An idle page resumes from persisted state; there is no background worker when th
 application is closed. A crashed server lease expires after 350 seconds.
 
 This phase supports up to 12 adult business travelers, shared travel dates, flights
-(one-way or round trip), and one hotel room per traveler. Requirements outside the
-implemented search filters are returned for clarification. Calendar coordination, disruptions and expenses are implemented in Phases 3–5 below.
+(one-way or round trip), and one hotel room per traveler. Details outside the
+implemented search filters are ignored without blocking request validation. Calendar coordination, disruptions and expenses are implemented in Phases 3–5 below.
 
 See [the captured Jinko contract](docs/jinko-contract.md) for the actual tool names,
 response shapes, money handling, cancellation limitations and diagnostics.
@@ -336,8 +336,9 @@ arrival margin, and no workspace budget cap until the manager sets one.
 Policy evaluates each traveler's total, including every hotel night.
 Ranking puts compliance first, then normalized cost, duration and arrival shortfall.
 A bare weekday means the next occurrence including today; “next Tuesday” or
-“mardi prochain” means strictly after today. Unclear dates, and ambiguous or
-nonexistent daylight-saving times, are rejected for clarification.
+“mardi prochain” means strictly after today. Unusable essential dates/times remain missing. Create trip resolves daylight-saving
+clock overlaps to the first occurrence and moves nonexistent wall times forward;
+strict date conversion remains available for other workflows.
 Signed links are HMAC-SHA256, purpose-bound, and valid for at most seven days.
 
 Vitest covers gate boundaries, policy thresholds, costs and ranking, cancellation
@@ -606,8 +607,9 @@ This change does not implement Part B or policy document ingestion.
   happens locally; explicit selection/deselection wins over name detection.
 - The first message creates a saved **Draft**. Resume at `/trips/new?draft=<id>`
   from Trips; only unvalidated drafts can be deleted.
-- Chat and inline edits update a card with value sources. A low-confidence intent
-  asks one question with quick replies. Notes require an explicit note request.
+- Chat and inline edits update a card with value sources. Only absent travelers,
+  destination, meeting date or meeting start generate a question. Vague optional
+  edits and unusable details are ignored without adding warnings or notes.
 - Required fields: travelers, destination, meeting date and meeting start. Defaults
   and journey recomputation live in `packages/core/src/trip-draft.ts`. Inline
   changes are recorded with their agent confirmation in one transaction; stale
@@ -625,9 +627,24 @@ This change does not implement Part B or policy document ingestion.
 - Company hotel/class rules remain sourced from the existing workspace policy.
   This phase does not invent document citations. The requested cabin and budget
   do not override the existing company-policy exception gates.
-- Explicit direct-flight, refundable-fare and checked-bag constraints map to the
-  existing search filters. Other free-text constraints remain visible and require
-  clarification/removal before validation, rather than being silently ignored.
+- Meeting duration/end, budget, cabin, maximum stops/direct flights, departure and
+  arrival time windows, refundable fares and checked bags map to the existing
+  search fields. Hotels use the meeting venue. Return-home requests use the default
+  round trip. Rail, named airlines/hotels, loyalty, dietary and irrelevant details
+  are silently ignored. Old unsupported constraint rows disappear on the next edit.
+- Dates such as `6/10`, `le 6`, `6 octobre`, `mardi prochain` and `next Tuesday`
+  are resolved in code. Numeric dates use day/month; dates without a year use their
+  next occurrence. Times accept `10h`, `10 h 30`, `10:00` and `10am`. Literal
+  departure/arrival clock limits are also preserved deterministically when the
+  model omits the optional filter.
+- The card button and validation route share the four-essential-field gate. Missing
+  optional values use defaults; unusable optional edits leave the current value.
+  Extraction errors/timeouts preserve the card and status and append a friendly
+  retry message. Draft extraction uses a 20-second timeout without automatic retries.
+- Empty live inventory completes the search as `options_ready` with no offers,
+  never `needs_info`, a clarification question, an approval action or a fabricated
+  partial bundle. Existing booking and policy-approval gates remain in place.
+  No additional SQL migration or environment setting is needed for this fix.
 
 All LLM instructions, including unchanged legacy instructions, are centralized in
 `apps/web/src/server/agent/prompts.ts`. Interpretation uses the existing
@@ -640,7 +657,12 @@ when present and is deliberately excluded from `pnpm test`.
 
 Manual acceptance: send an incomplete French request; fill the missing fields;
 change the start to 14:00; override the return; change the meeting date and verify
-both journey overrides reset; try “je veux changer le retour”; explicitly add and
-remove a note; reload the draft; validate and watch Calendar/Travel/Policy/Optimizer
+both journey overrides reset; try “je veux changer le retour” and verify no question is asked; reload the draft; validate and watch Calendar/Travel/Policy/Optimizer
 progress; open the options. Check desktop and mobile. No search should run before
 validation, and the conversation must stay visible after it.
+
+Robustness acceptance: run `pnpm eval:agent` for the three messy Josselin requests
+(French, English, numeric date and a 07:00 departure limit). Each must yield a
+complete card, no warnings/notes and no question. Unit tests also cover all 16
+combinations of essential fields in the actual button and validation logic,
+malformed optional changes, extraction failure preservation and empty inventory.

@@ -10,5 +10,5 @@ export function interpretTripMessage(message: string, card: TripCard, directory:
     history: history.slice(-16).map(({ role, content }) => ({ role, content })),
     directory: directory.map(({ id, full_name, email, home_city, home_airport }) => ({ id, full_name, email, home_city, home_airport })),
     supported_destinations: TRIP_CITIES.map((c) => c.name),
-  }, audit);
+  }, audit, undefined, { timeout: 20000, maxRetries: 0 });
 }

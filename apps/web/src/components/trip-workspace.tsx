@@ -203,13 +203,13 @@ export function PlanningProgress({ data }: { data: TripDetail }) {
   const nodes = [
     { icon: CalendarDays, name: "Calendar", detail: data.travelers.filter((t) => t.availability).length + " calendars checked", tone: "neutral" as const },
     { icon: Plane, name: "Travel", detail: searched + " traveler searches saved", tone: searched ? "success" as const : "primary" as const },
-    { icon: ShieldCheck, name: "Policy", detail: ready ? "Options evaluated" : "Waiting for offers", tone: ready ? "success" as const : "neutral" as const },
-    { icon: GitCompareArrows, name: "Optimizer", detail: ready ? data.options.length + " ranked options" : "Cost × time × compliance", tone: ready ? "success" as const : "neutral" as const },
+    { icon: ShieldCheck, name: "Policy", detail: data.trip.status === "options_ready" && !ready ? "Search complete" : ready ? "Options evaluated" : "Waiting for offers", tone: ready ? "success" as const : "neutral" as const },
+    { icon: GitCompareArrows, name: "Optimizer", detail: data.trip.status === "options_ready" && !ready ? "No matching offers" : ready ? data.options.length + " ranked options" : "Cost × time × compliance", tone: ready ? "success" as const : "neutral" as const },
   ];
   return (
     <section className="workflow-surface">
       <div className="coordinator-card"><span className="coordinator-icon"><Sparkles size={25} /></span><div><small>Travel AI coordinator</small>
-        <p>{automatic(data) ? "Planning from live travel inventory" : "Waiting for your next decision"}</p></div><span className="live-label"><span className="status-dot" />{data.running ? "Running" : "Saved"}</span></div>
+        <p>{data.trip.status === "options_ready" && !ready ? "Search complete" : automatic(data) ? "Planning from live travel inventory" : "Waiting for your next decision"}</p></div><span className="live-label"><span className="status-dot" />{data.running ? "Running" : "Saved"}</span></div>
       <div className="workflow-arrow"><ArrowDown size={30} strokeWidth={1.4} /></div>
       <div className="workflow-nodes">{nodes.map((item) => <div key={item.name} className={"workflow-node " + (item.name === "Travel" && data.trip.status === "searching" ? "selected" : "")}>
         <IconBox icon={item.icon} tone={item.tone} /><span><strong>{item.name}</strong><small>{item.detail}</small></span></div>)}</div>

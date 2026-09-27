@@ -3,7 +3,10 @@ import {
   TravelerInputSchema, type RequestExtraction, type TravelerRecord, type TravelRequest,
   type SearchResult, type PolicyRules, type TripOption, type PlanTraveler,
 } from "@repo/types";
-import { resolveRelativeDate, zonedDateTimeToUtc } from "./dates";
+import { zonedDateTimeToUtc } from "./dates";
+import { addDraftMinutes, normalizeDraftTime, resolveDraftDate } from "./draft-inputs";
+import { tripCity } from "./trip-cities";
+import { usableDraftConstraint } from "./trip-draft";
 import { rankOptions } from "./scoring";
 import { travelerCost } from "./policy";
 
@@ -12,8 +15,10 @@ export class PlanningError extends Error {}
 const normalized = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
 export function resolveRequest(extracted: RequestExtraction, existing: TravelerRecord[], selectedIds: string[], now: Date) {
   const fr = extracted.language === "fr";
-  const missing: string[] = [...extracted.missingFields];
+  // Never trust model-authored missingFields: optional details cannot become gates.
+  const missing: string[] = [];
   const ask = (en: string, french: string) => missing.push(fr ? french : en);
+  const travelerQuestions: string[] = [];
   const travelerIds = new Set(selectedIds);
   const newTravelers: ReturnType<typeof TravelerInputSchema.parse>[] = [];
   for (const person of extracted.travelers) {
@@ -22,68 +27,61 @@ export function resolveRequest(extracted: RequestExtraction, existing: TravelerR
       : normalized(t.full_name) === normalized(person.name)
         || normalized(t.full_name).split(" ")[0] === normalized(person.name));
     if (matches.length === 1) travelerIds.add(matches[0].id);
-    else if (matches.length > 1) ask("Specify the email for " + person.name + ".", "Précisez l’adresse e-mail de " + person.name + ".");
+    else if (matches.length > 1) travelerQuestions.push(fr ? "Précisez l’adresse e-mail de " + person.name + "." : "Specify the email for " + person.name + ".");
     else {
       const candidate = TravelerInputSchema.safeParse({ full_name: person.name, email: person.email, home_city: person.home_city, home_airport: person.home_airport });
       if (candidate.success) {
         if (!newTravelers.some((t) => t.email === candidate.data.email)) newTravelers.push(candidate.data);
-      } else ask("Add " + person.name + " in Travelers with an email, home city and airport, then retry.", "Ajoutez " + person.name + " dans Travelers avec son e-mail, sa ville et son aéroport de départ, puis réessayez.");
+      }
     }
   }
-  for (const id of travelerIds) if (!existing.some((t) => t.id === id)) throw new PlanningError("A selected traveler is not available.");
+  for (const id of travelerIds) if (!existing.some((t) => t.id === id)) travelerIds.delete(id);
   const count = travelerIds.size + newTravelers.length;
-  if (!count) ask("Who is traveling? Select or name the travelers.", "Qui voyage ? Sélectionnez ou nommez les voyageurs.");
-  if (count > 12) ask("Split this request into groups of up to 12 travelers.", "Répartissez la demande en groupes de 12 voyageurs maximum.");
-  const date = (value: string | null, label: string): string | null => {
-    if (!value) return null;
-    try { return resolveRelativeDate(value, now, "Europe/Paris"); }
-    catch { missing.push(label + ": " + value); return null; }
-  };
-  let meeting: TravelRequest["meeting"] = null;
-  const input = extracted.meeting;
-  if (input) {
-    const startDate = date(input.date, "Meeting date");
-    const endDate = date(input.end_date ?? input.date, "Meeting end date");
-    try {
-      if (startDate && endDate && input.start_time && input.end_time) meeting = MeetingSchema.parse({
-        title: input.title, location: input.location, timezone: input.timezone || "Europe/Paris", google_event_id: null,
-        start: zonedDateTimeToUtc(startDate, input.start_time, input.timezone || "Europe/Paris"),
-        end: zonedDateTimeToUtc(endDate, input.end_time, input.timezone || "Europe/Paris"),
-      });
-    } catch { ask("Clarify meeting dates, times and time zone (ambiguous clock changes need clarification).", "Précisez les dates, horaires et fuseau de la réunion (attention aux changements d’heure)."); }
-  }
-  if (!meeting) ask("Give the meeting date, start/end times, time zone and venue.", "Indiquez la date, les heures de début et de fin, le fuseau et le lieu de la réunion.");
-  else if (Date.parse(meeting.start) <= now.getTime()) ask("The meeting must be in the future.", "La réunion doit être dans le futur.");
-  if (meeting && !meeting.location.trim()) ask("Specify the meeting venue.", "Précisez le lieu de la réunion.");
+  if (!count) ask(travelerQuestions[0] ?? "Who is traveling?", travelerQuestions[0] ?? "Qui voyage ?");
   if (!extracted.destination) ask("What is the destination?", "Quelle est la destination ?");
+  const city = tripCity(extracted.destination ?? "");
+  const timezone = city?.timezone ?? "Europe/Paris";
+  const date = (value: string | null): string | null => {
+    if (!value) return null;
+    try { return resolveDraftDate(value, now, timezone); } catch { return null; }
+  };
+  const time = (value: string | null) => {
+    try { return normalizeDraftTime(value); } catch { return null; }
+  };
+  const shift = (value: string, days: number) => new Date(Date.parse(value + "T12:00:00Z") + days * 86400000).toISOString().slice(0, 10);
+  const input = extracted.meeting, meetingDate = date(input?.date ?? null), startTime = time(input?.start_time ?? null);
+  if (!meetingDate) ask("What is the meeting date?", "Quelle est la date de réunion ?");
+  if (!startTime) ask("What time does the meeting start?", "À quelle heure commence la réunion ?");
+  const endTime = time(input?.end_time ?? null) ?? (startTime ? addDraftMinutes(startTime, 120) : null);
+  const endDate = meetingDate && startTime && endTime ? shift(meetingDate, endTime <= startTime ? 1 : 0) : null;
+  const venue = input?.location.trim() || (extracted.destination ?? "") + " city centre";
+  const meeting = meetingDate && startTime && endTime && endDate ? MeetingSchema.parse({
+    title: input?.title || "Meeting", location: venue, timezone, google_event_id: null,
+    start: zonedDateTimeToUtc(meetingDate, startTime, timezone, "compatible"),
+    end: zonedDateTimeToUtc(endDate, endTime, timezone, "compatible"),
+  }) : null;
+  const defaultDeparture = meetingDate && startTime ? shift(meetingDate, startTime < "11:00" ? -1 : 0) : null;
+  const defaultReturn = endDate && endTime ? shift(endDate, endTime < "16:00" ? 0 : 1) : null;
+  const requestedDeparture = date(extracted.journey.departure_date), requestedReturn = date(extracted.journey.return_date);
+  const departure = requestedDeparture && meetingDate && requestedDeparture <= meetingDate ? requestedDeparture : defaultDeparture;
+  const returning = requestedReturn && endDate && requestedReturn >= endDate ? requestedReturn : defaultReturn;
+  const requestedCheckin = date(extracted.journey.hotel_checkin), requestedCheckout = date(extracted.journey.hotel_checkout);
+  const validStay = requestedCheckin && requestedCheckout && requestedCheckout > requestedCheckin;
+  const checkin = validStay ? requestedCheckin : departure, checkout = validStay ? requestedCheckout : returning;
   const journey = JourneySchema.parse({
-    ...extracted.journey,
-    departure_date: date(extracted.journey.departure_date, "Departure date"),
-    return_date: date(extracted.journey.return_date, "Return date"),
-    hotel_checkin: date(extracted.journey.hotel_checkin, "Hotel check-in"),
-    hotel_checkout: date(extracted.journey.hotel_checkout, "Hotel check-out"),
+    ...extracted.journey, transport: extracted.journey.transport ?? "flight",
+    destination_iata: extracted.journey.destination_iata ?? city?.airport ?? null,
+    departure_date: departure, return_date: returning, one_way: extracted.journey.one_way ?? false,
+    hotel_needed: extracted.journey.hotel_needed ?? Boolean(checkin && checkout && checkout > checkin),
+    hotel_checkin: checkin, hotel_checkout: checkout, hotel_query: venue,
+    cabin: extracted.journey.cabin ?? "economy", unsupported_constraints: [],
   });
-  if (!journey.transport) ask("Do you need flights, or only a hotel?", "Faut-il des vols ou uniquement un hôtel ?");
-  if (journey.transport === "flight") {
-    if (!journey.destination_iata || !journey.departure_date) ask("Specify the destination airport and departure date.", "Précisez l’aéroport d’arrivée et la date de départ.");
-    if (journey.one_way === null || (!journey.one_way && !journey.return_date)) ask("Specify the return date, or explicitly request one-way travel.", "Précisez la date de retour, ou demandez explicitement un aller simple.");
-    if (journey.departure_date && journey.departure_date < resolveRelativeDate("today", now)) ask("Departure must be today or later.", "Le départ doit être aujourd’hui ou plus tard.");
-    if (journey.return_date && journey.departure_date && journey.return_date < journey.departure_date) ask("Return must follow departure.", "Le retour doit suivre le départ.");
-  }
-  if (journey.hotel_needed === null) ask("Do you need a hotel? Specify check-in and check-out dates.", "Faut-il un hôtel ? Précisez les dates d’arrivée et de départ.");
-  if (journey.hotel_needed && (!journey.hotel_checkin || !journey.hotel_checkout || !journey.hotel_query || journey.hotel_checkout <= journey.hotel_checkin)) {
-    ask("Specify the hotel location and check-in/check-out dates.", "Précisez le lieu de recherche de l’hôtel et les dates d’arrivée et de départ.");
-  }
-  if (journey.transport === "none" && journey.hotel_needed === false) ask("This request contains no flight or hotel to arrange.", "Cette demande ne contient ni vol ni hôtel à organiser.");
-  if (journey.unsupported_constraints.length) ask(
-    "Clarify these constraints before searching: " + journey.unsupported_constraints.join("; "),
-    "Précisez ces contraintes avant la recherche : " + journey.unsupported_constraints.join(" ; "));
-  const budget = extracted.budget_per_traveler ?? (extracted.total_budget !== null && count ? Math.floor(extracted.total_budget * 100 / count) / 100 : null);
-  if (budget === 0) ask("Specify a positive travel budget.", "Précisez un budget voyage supérieur à zéro.");
+  const requestedBudget = extracted.budget_per_traveler ?? (extracted.total_budget !== null && count ? Math.floor(extracted.total_budget * 100 / count) / 100 : null);
+  const budget = requestedBudget && requestedBudget > 0 ? requestedBudget : null;
   const request: TravelRequest = {
     title: extracted.title, destination: extracted.destination, language: extracted.language,
     travelers: extracted.travelers.map((p) => ({ name: p.name, email: p.email && /^[^@]+@[^@]+\.[^@]+$/.test(p.email) ? p.email : null })),
-    meeting, budget_per_traveler: budget, constraints: extracted.constraints, missingFields: [...new Set(missing)],
+    meeting, budget_per_traveler: budget, constraints: extracted.constraints.filter((value) => usableDraftConstraint(value)), missingFields: [...new Set(missing)],
   };
   return { request, journey, travelerIds: [...travelerIds], newTravelers };
 }
