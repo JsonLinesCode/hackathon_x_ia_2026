@@ -21,3 +21,5 @@ export * from "./calendar-file";
 export * from "./coordination";
 
 export * from "./disruptions";
+
+export * from "./expenses";

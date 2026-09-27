@@ -16,3 +16,5 @@ export * from "./planning";
 export * from "./coordination";
 
 export * from "./disruptions";
+
+export * from "./post-trip";

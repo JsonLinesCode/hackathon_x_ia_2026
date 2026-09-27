@@ -47,7 +47,7 @@ export function Dashboard({ tripsOnly = false }: { tripsOnly?: boolean }) {
               <td><Badge tone={trip.pending_decisions || trip.status === "awaiting_exception" ? "warning" : trip.status === "booked" ? "success" : "neutral"}>{statusLabel(trip.status)}</Badge></td>
             </tr>)}</tbody></table></div>}
       </section><section className="surface attention-panel"><div className="section-heading"><h2>Attention required</h2><span className="text-link">{attention.length} trips</span></div>
-        <div className="attention-list">{attention.map((trip) => <Link href={"/trips/" + trip.id} key={trip.id} className="attention-item"><IconBox icon={TriangleAlert} tone="warning" />
+        <div className="attention-list">{attention.map((trip) => <Link href={"/trips/" + trip.id + (["completed", "cancelled", "reported"].includes(trip.status) ? "/report" : "")} key={trip.id} className="attention-item"><IconBox icon={TriangleAlert} tone="warning" />
           <span><strong>{trip.title}</strong><small>{trip.pending_decisions ? trip.pending_decisions + " pending decisions" : statusLabel(trip.status)}</small></span><ArrowRight size={14} /></Link>)}</div>
         {!attention.length && <p className="empty-state">No decisions awaiting your attention.</p>}
       </section></div>

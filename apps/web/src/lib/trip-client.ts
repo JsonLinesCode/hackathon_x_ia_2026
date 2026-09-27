@@ -12,6 +12,8 @@ export async function api<T>(path: string, body?: unknown, method = body === und
 }
 export function automatic(detail: TripDetail) {
   if (detail.workflow_error) return false;
+  if (detail.receipts.some((r) => ["uploaded", "extracting"].includes(r.status))) return true;
+  if (detail.actions.some((a) => a.kind === "submit_expense_report" && ["approved", "executing"].includes(a.status))) return true;
   if (["understanding", "checking_availability", "searching"].includes(detail.trip.status)) return true;
   if (detail.actions.some((a) => a.gate === "auto" && ["proposed", "executing"].includes(a.status))) return true;
   if (detail.trip.status === "disrupted" && detail.disruption) {

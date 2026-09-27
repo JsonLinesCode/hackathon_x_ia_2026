@@ -2897,3 +2897,9 @@ td {
 .recovery-choice { border-top:1px solid var(--border); padding-top:20px; display:grid; gap:12px; }
 .disruption-panel .button-row { flex-wrap:wrap; }
 .disruption-panel p { overflow-wrap:anywhere; }
+
+/* Post-trip uses the existing workspace surfaces and form grid. */
+.post-trip .surface { min-width: 0; }
+.expense-line { border-top: 1px solid var(--border); padding-top: 1.25rem; }
+.report-preview { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; line-height: 1.65; }
+.post-trip h2 { overflow-wrap: anywhere; }

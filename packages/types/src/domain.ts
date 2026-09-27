@@ -144,7 +144,7 @@ export const InboundEventSchema = z.object({
 export const ExpenseSchema = z.object({
   id: IdSchema, owner_id: IdSchema, trip_id: IdSchema, traveler_id: IdSchema, date: z.string().date(),
   merchant: z.string(), category: z.string(), amount: MoneySchema, currency: z.string().regex(/^[A-Z]{3}$/),
-  amount_eur: MoneySchema, compliant: z.boolean(), note: z.string().nullable(), receipt_path: z.string().nullable(),
+  amount_eur: MoneySchema.nullable(), receipt_id: IdSchema.nullable().default(null), line_index: z.number().int().nullable().default(null), reviewed: z.boolean().default(false), nights: z.number().int().positive().nullable().default(null), policy_reasons: z.string().array().default([]), compliant: z.boolean(), note: z.string().nullable(), receipt_path: z.string().nullable(),
 });
 export const SignedLinkPayloadSchema = z.object({
   purpose: z.enum(["trip_confirmation", "calendar_access", "google_oauth_state"]),

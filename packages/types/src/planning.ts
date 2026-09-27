@@ -1,3 +1,5 @@
+import { ExpenseSchema } from "./domain";
+import { ReceiptSchema } from "./post-trip";
 import { z } from "zod";
 import { IdSchema, MoneySchema, TimestampSchema, TimeZoneSchema, TripSchema, TripOptionSchema, TripTravelerSchema, TravelerRecordSchema, BookingSchema, ActionSchema, TimelineEventSchema, FlightSchema, HotelSchema, OutreachSchema } from "./domain";
 
@@ -69,6 +71,7 @@ export const PlanningStateSchema = z.object({
 }).default({});
 export type PlanningState = z.infer<typeof PlanningStateSchema>;
 export const TripDetailSchema = z.object({
+  receipts: ReceiptSchema.array().default([]), expenses: ExpenseSchema.array().default([]),
   trip: TripSchema,
   journey: JourneySchema.nullable(),
   travelers: PlanTravelerSchema.array(),

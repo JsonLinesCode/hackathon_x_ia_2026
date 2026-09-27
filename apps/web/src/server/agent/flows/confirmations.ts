@@ -146,7 +146,7 @@ export async function postBookingNext(store: TripStore) {
     const profile = await store.db.from("profiles").select("email,full_name").eq("id", store.owner).single(); planningDatabase(profile.error);
     await notify(store, { email: profile.data!.email, name: profile.data!.full_name }, { key, purpose: "Manager travel recap", kind: "send_recap",
       facts: { trip: store.state.trip.title, note: "Unpaid quotes; review final prices and cancellation terms. Travelers have tentative calendar invitations." },
-      links: store.state.bookings.filter((b) => ["quoted", "booked"].includes(b.status)).filter((b, i, all) => b.payment_link && all.findIndex((o) => o.payment_link === b.payment_link) === i)
+      links: store.state.bookings.filter((b) => ["quoted", "booked"].includes(b.status) && !store.state.bookings.some((other) => other.payment_link === b.payment_link && !["quoted", "booked"].includes(other.status))).filter((b, i, all) => b.payment_link && all.findIndex((o) => o.payment_link === b.payment_link) === i)
         .map((b) => ({ label: "Jinko · " + store.state.travelers.find((t) => t.traveler_id === b.traveler_id)!.traveler.full_name, url: b.payment_link! })) }); return;
   }
   await store.save({ trip: { workflow: { ...store.state.workflow, coordination: { ...store.state.workflow.coordination, post_booking_done: true } } },

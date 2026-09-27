@@ -9,6 +9,7 @@ export type Screen =
   | "disruptions"
   | "home"
   | "assistant"
+  | "report"
   | "itinerary"
   | "travelers"
   | "policies"

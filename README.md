@@ -1,10 +1,10 @@
 # Travel Manager
 
 B2B travel coordination using the existing desktop dashboard and mobile design system.
-Phases 1 and 2 of [BUILD_PLAN.md](BUILD_PLAN.md) are implemented: Google sign-in,
-persistent travelers and policy, OpenAI request extraction, live Jinko searches,
-ranked options, recorded approvals and unpaid quote links. The existing desktop
-and mobile layout is retained. Phases 3–6 are not implemented.
+Phases 1–5 of [BUILD_PLAN.md](BUILD_PLAN.md) are implemented: persistent planning,
+OpenAI extraction, live Jinko search and unpaid quotes, Google coordination,
+disruption recovery, private receipts and approved expense reports. The existing
+desktop and mobile layout is retained. Phase 6 (assistant) remains unimplemented.
 
 ## Local setup
 
@@ -162,8 +162,7 @@ application is closed. A crashed server lease expires after 350 seconds.
 
 This phase supports up to 12 adult business travelers, shared travel dates, flights
 (one-way or round trip), and one hotel room per traveler. Requirements outside the
-implemented search filters are returned for clarification. Calendar checks, Gmail,
-reminders, real disruption handling and expenses are still later phases.
+implemented search filters are returned for clarification. Calendar coordination, disruptions and expenses are implemented in Phases 3–5 below.
 
 See [the captured Jinko contract](docs/jinko-contract.md) for the actual tool names,
 response shapes, money handling, cancellation limitations and diagnostics.
@@ -185,10 +184,11 @@ response shapes, money handling, cancellation limitations and diagnostics.
 - Workflow tables are readable by their owner and writable only by trusted
   server workflows. Phase 1 grants user mutations only on travelers and policies.
   Phase 2 adds service-only atomic commits and leases. Each API checks ownership
-  before using a service client. No background worker, queue, payment executor,
-  email sender or calendar sync exists.
+  before using a service client. The orchestrator handles Gmail/Calendar operations and approved report submissions.
+  No background worker, queue or payment executor exists.
 - The private receipts bucket uses owner-id/trip-id/filename paths and checks both
-  account and trip ownership. Upload UI is Phase 5.
+  account and trip ownership. Phase 5 routes validate uploads and hold workflow leases;
+  direct client uploads/deletions are disabled to protect approved reports.
 - packages/types: shared Zod domain contracts. The small original TravelerSchema
   remains only for screens still using the supplied fixtures; new records use
   TravelerRecordSchema.
@@ -200,7 +200,7 @@ cancellation, paid modification and report submission require a recorded manager
 decision. Free informational messages, confirmation requests, reminders, recap
 and calendar actions can be automatic only when explicitly reversible.
 Unknown cancellation terms remain unknown and require review.
-OpenAI only extracts and explains. It has no tools and cannot execute a booking.
+OpenAI extracts, explains, drafts and classifies. It has no tools and cannot execute actions.
 Only the orchestrator can prepare approved Jinko quotes.
 
 Default policy: economy below six hours, EUR 180 per person/night, a 60-minute
@@ -229,10 +229,13 @@ the application has no mock mode.
 | /, /trips | Real trip list and attention counts |
 | /trips/new | Persisted free-text request |
 | /trips/[id]/planning | Resumable planning and clarification |
-| /trips/[id] | Ranked options, exception approval, manual confirmations, decisions, timeline |
+| /trips/[id] | Ranked options, exceptions, emailed confirmations, decisions, recovery and timeline |
 | /trips/[id]/itinerary | Stored quotes and tentative .ics export |
 | /trips/berlin, /trips/berlin/planning, /itinerary | Redirect to the real trips list |
-| /disruptions, /my-trip | Original fixtures retained for their later phases |
+| /disruptions | Real disruptions and approved recovery actions |
+| /r/[token] | Public, scoped traveler confirmation and itinerary |
+| /my-trip | Redirect to the manager trips list |
+| /trips/[id]/report | Private receipts, expense verification, totals and approved report delivery |
 | /assistant | Original fixture-based answers; Phase 6 |
 | /design-system | Shared UI reference |
 
@@ -383,3 +386,80 @@ A logged-in request may omit the bearer header and owner_email; ownership then
 comes exclusively from the session. Repeating the same idempotency key does not
 create another recovery. Automatic tests use isolated provider doubles; no real
 cancellation or refund was performed during implementation.
+
+## Phase 5 — Receipts and expense reports
+
+Apply [0005_post_trip.sql](supabase/migrations/0005_post_trip.sql) after 0004.
+It adds owner-isolated receipt metadata, expense review fields, duplicate constraints
+and an atomic checkpoint that invalidates pending report approvals when expenses
+change. Once delivery starts, report data is frozen. Authenticated clients can
+read their private receipts; only the leased server flow writes/deletes metadata
+or uploads files. The bucket remains private.
+
+No new dependency or environment variable is required. OPENAI_MODEL must support
+the Responses API with structured outputs and image/PDF inputs. Use the existing
+OpenAI and manager Gmail credentials; missing access is shown as an error.
+
+From a trip, open **Expenses & report**. JPEG, PNG, WebP and PDF files up to
+**4 MiB** are accepted. File signatures are checked and bytes are hashed to avoid
+duplicate uploads, including recovery after an interrupted upload. Extraction
+runs one receipt per saved step while the page is open. Unreadable fields remain
+empty; they are never guessed. Files and extracted lines stay scoped to the manager.
+
+Verify each line against the original receipt before saving it. For non-EUR
+receipts, enter the EUR amount from an actual card statement or other verified
+conversion source, and record that source in the note. There is no FX provider
+and no inferred exchange rate. Hotel expenses require nights. The current policy
+checks nightly hotel cost and cumulative per-traveler budget; potential duplicates,
+unknown conversions, flight-class evidence and other business-purpose questions
+are flagged. Policy issues stay visible in the approved report.
+
+Reports require a **completed** or **cancelled** trip and at least one verified
+expense. Mark a trip completed only after its recorded travel dates have ended
+and its actual outcome has been checked. Cancelled trips can report incurred
+expenses. All receipts must be reviewed or explicitly excluded with a reason.
+The CSV export is available earlier and clearly exposes review/compliance fields.
+
+The manager enters the recipient, prepares a report and reviews the exact email.
+**Approve & send report** records a separate needs_manager decision. Until approval,
+no report is sent. Rejections do not send. A changed expense or policy makes an old
+approval unusable. The immutable report snapshot records the policy, lines and totals
+per traveler. Successful Gmail delivery moves the trip to reported.
+
+A lost response is reconciled through the saved RFC Message-ID. If delivery cannot
+be proven, the action fails with manual instructions and the report remains frozen;
+it is never sent a second time automatically. Inspect Gmail Sent/the recipient
+before any manual follow-up. Do not reset execution markers or recreate a report
+blindly. Receipts are not attached to the email; the recipient receives the verified
+summary and expense lines. After submission, the report screen and CSV preserve the approved policy results
+and traveler names from the immutable snapshot. Original files remain private, with short-lived download
+URLs for the authenticated manager.
+
+Manual acceptance:
+1. Apply 0003, 0004 and 0005 in order if they have not yet been applied, then start
+   the app with pnpm dev (or deploy the committed code through your normal process).
+2. On a trip, upload a real photographed receipt and a PDF. Keep the report page
+   open, verify the extracted merchant/date/amount/currency and correct any OCR
+   error against the original. Check hotel nights and policy warnings.
+3. Upload the exact same file again: no extra receipt or expense must be created.
+   Test an unreadable date, a foreign currency, an unsupported file and a file
+   over 4 MiB. Unknown EUR conversions must be absent from totals until verified.
+4. Check expense totals per traveler, possible duplicates, excluded receipts and
+   the CSV. Open the page on desktop and mobile. A second account must not read
+   the trip, receipt metadata, download endpoint or private storage object.
+5. Use a trip whose travel dates have ended, or a cancelled trip with incurred
+   expenses. Complete/review it, enter a test recipient you control, then prepare
+   a report. No report email should exist yet. Inspect its exact recipient and body.
+6. Reject a proposal and verify no delivery. Prepare another, approve it and keep
+   the page open until reported. Check the message in both Gmail Sent and the
+   recipient inbox. Reload during processing and confirm there is only one report.
+7. Before approving a draft, edit an expense: the earlier proposal must be rejected.
+   A policy edit must make approval of a stale snapshot fail and require a fresh
+   report. Read the final sent report from its saved snapshot.
+
+Validation uses Vitest test doubles and a disposable local PostgreSQL engine for
+migrations, ownership, private storage policies, atomic updates, approval
+invalidation and frozen submissions. It does not send real emails, mutate Google
+calendars, cancel provider bookings or apply migrations to your live project.
+See [OpenAI PDF inputs](https://developers.openai.com/api/docs/guides/pdf-files)
+for model requirements and document-input behavior.

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { IdSchema } from "@repo/types";
 import { assertBookingReady, classifyAction } from "@repo/core";
+import { validateReport } from "@/server/agent/flows/post-trip";
 import { requireUser } from "@/server/auth";
 import { checkOrigin, handleApi, HttpError, json, readJson } from "@/server/http";
 import { planningDatabase, loadTrip, publicTrip, withTrip } from "@/server/agent/store";
@@ -24,6 +25,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         const option = store.state.options.find((o) => o.selected && o.id === action.payload.option_id);
         if (!option) throw new HttpError(409, "The option for this action is no longer selected.");
         if (input.decision === "approve") assertBookingReady(option, store.state.travelers, new Date());
+      } else if (action.kind === "submit_expense_report") {
+        if (input.decision === "approve") await validateReport(store, action);
       } else {
         const d = store.state.workflow.disruption;
         if (!d || d.stage !== "waiting" || !d.action_ids.includes(action.id)) throw new HttpError(409, "Recovery action is not current.");

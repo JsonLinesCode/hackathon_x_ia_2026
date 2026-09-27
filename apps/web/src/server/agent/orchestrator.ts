@@ -6,6 +6,7 @@ import { EnvironmentError } from "../env";
 import { withTrip, type TripStore } from "./store";
 import { understand, searchNext, quoteNext } from "./flows/plan-trip";
 
+import { extractNextReceipt, sendReportNext } from "./flows/post-trip";
 import { disruptionNext } from "./flows/disruptions";
 import { executeCommunication } from "./notify";
 import { checkAvailability, confirmationNext, postBookingNext } from "./flows/confirmations";
@@ -15,6 +16,8 @@ export async function runStep(store: TripStore, retry = false) {
   if (store.state.workflow.error && !retry) return;
   if (retry) await store.save({ trip: { workflow: { ...store.state.workflow, error: null } }, events: [{ actor: "manager", title: "Retry requested" }] });
   try {
+    if (await sendReportNext(store)) return;
+    if (await extractNextReceipt(store)) return;
     if (await executeCommunication(store)) return;
     switch (store.state.trip.status) {
       case "disrupted": await disruptionNext(store); break;

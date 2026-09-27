@@ -23,7 +23,7 @@ function storeFixture() {
       details: { token: "htl_test", name: "Hotel", hotel_id: "h1", expires_at: null, refundable: true, cancellation_terms: { price_eur: 100, refundable: true, free_until: null, fee_eur: null },
         address: "Paris", checkin: "2026-11-11", checkout: "2026-11-12", timezone: "Europe/Paris", room: "Room", board: "", total_eur: 100, extra_taxes: [] } } }] };
   const trip: Trip = { id: tripId, owner_id: owner, title: "Meeting", request_text: "Hotel for the meeting", extracted: null, destination: "Paris", meeting: null, status: "awaiting_travelers", budget_per_traveler: null, created_at: decisionAt, updated_at: decisionAt };
-  const state: TripState = { trip, travelers: [traveler], directory: [traveler.traveler], options: [option], actions: [], bookings: [], timeline: [], outreach: [], running: true, workflow: PlanningStateSchema.parse({}) };
+  const state: TripState = { trip, travelers: [traveler], directory: [traveler.traveler], options: [option], actions: [], bookings: [], timeline: [], outreach: [], receipts: [], expenses: [], running: true, workflow: PlanningStateSchema.parse({}) };
   const saves: Changes[] = [];
   const store = {
     owner, id: tripId, state, audit: vi.fn(), event: vi.fn(), policy: async () => DEFAULT_POLICY,

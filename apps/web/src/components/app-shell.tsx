@@ -24,6 +24,7 @@ import { Avatar } from "@repo/ui";
 import { Button } from "@repo/ui/button";
 import { cn } from "@repo/ui/utils";
 import { type Screen } from "@/lib/travel-data";
+import { PostTrip } from "./post-trip-workspace";
 import { SyncControl } from "./coordination-controls";
 import { Dashboard } from "./dashboard";
 import {
@@ -51,7 +52,7 @@ const navigation = [
     label: "Trips",
     href: "/trips",
     icon: Luggage,
-    screens: ["trips", "create", "planning", "trip", "home", "itinerary"],
+    screens: ["trips", "create", "planning", "trip", "home", "itinerary", "report"],
   },
   {
     label: "Travelers",
@@ -88,6 +89,7 @@ const breadcrumbs: Record<Screen, string> = {
   home: "My trip / Berlin Offsite",
   assistant: "Assistant",
   itinerary: "Trips / Itinerary",
+  report: "Trips / Expenses & report",
   travelers: "Travelers",
   policies: "Policies",
   profile: "Settings",
@@ -99,6 +101,7 @@ const mobileTitles: Record<Screen, [string, string]> = {
   assistant: ["Assistant", "Ready when you are"],
   disruptions: ["Trip updates", "Your team travel"],
   itinerary: ["Itinerary", "Your travel plan"],
+  report: ["Expenses & report", "Your workspace"],
   trips: ["Trips", "Your team travel"],
   create: ["Create trip", "Your workspace"],
   planning: ["Planning", "Coordinating your team"],
@@ -276,6 +279,7 @@ export function AppShell({ screen = "overview", tripId }: { screen?: Screen; tri
           {screen === "create" && <CreateTrip />}
           {screen === "planning" && tripId && <Planning tripId={tripId} />}
           {screen === "trip" && tripId && <TripPlan tripId={tripId} />}
+          {screen === "report" && tripId && <PostTrip tripId={tripId} />}
           {screen === "disruptions" && <Disruptions />}
           {screen === "home" && <TravelerHome />}
           {screen === "assistant" && <Assistant />}
@@ -298,7 +302,7 @@ export function AppShell({ screen = "overview", tripId }: { screen?: Screen; tri
             label: "Trips",
             href: "/trips",
             icon: Luggage,
-            active: ["trips", "create", "planning", "trip", "itinerary"].includes(screen),
+            active: ["trips", "create", "planning", "trip", "itinerary", "report"].includes(screen),
           },
           {
             label: "Updates",

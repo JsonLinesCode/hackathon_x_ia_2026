@@ -5,7 +5,7 @@ import { googleRequest } from "./google-auth";
 import type { Audit } from "./errors";
 
 export const MailSchema = z.object({
-  to: z.string().email(), subject: z.string().min(1).max(500),
+  to: z.string().email(), subject: z.string().min(1).max(500).refine((v) => !/[\r\n]/.test(v), "Mail subject must be a single line"),
   body: z.string().max(40000), links: z.array(z.object({ label: z.string(), url: z.string().url() })).default([]),
   messageId: z.string().regex(/^<[a-zA-Z0-9.-]+@[a-zA-Z0-9.-]+>$/),
   threadId: z.string().optional(), inReplyTo: z.string().regex(/^<[^<>\r\n]+>$/).optional(),
